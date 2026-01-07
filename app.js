@@ -180,5 +180,51 @@ async function fetchAndUpdate() {
   warningEl.style.display = anyOver2h ? 'block' : 'none';
 }
 
-// Initial fetch
-fetchAndUpdate();
+// ---------- FETCH & UPDATE ----------
+async function fetchAndUpdate() {
+  const now = Date.now();
+  const cutoff = new Date(now - 90*60*1000); // last 90 minutes
+
+  const snapshot = await db.collection('waitTimes')
+    .where('timestamp', '>=', cutoff)
+    .get();
+
+  const driveTimes = [];
+  const dineTimes = [];
+  let anyOver2h = false;
+
+  let latestDriveTimestamp = 0;
+  let latestDineTimestamp = 0;
+
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    if(data.minutesTotal > 240) return; // ignore >4h
+
+    if(data.type === 'drive') {
+      driveTimes.push(data.minutesTotal);
+      if(data.timestamp?.toDate()?.getTime() > latestDriveTimestamp) {
+        latestDriveTimestamp = data.timestamp.toDate().getTime();
+      }
+    } else if(data.type === 'dine') {
+      dineTimes.push(data.minutesTotal);
+      if(data.timestamp?.toDate()?.getTime() > latestDineTimestamp) {
+        latestDineTimestamp = data.timestamp.toDate().getTime();
+      }
+    }
+
+    if(data.minutesTotal >= 120) anyOver2h = true;
+  });
+
+  // Update wait time text
+  driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'No data';
+  dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'No data';
+
+  // Update "Updated X min ago" separately
+  driveUpdatedEl.textContent = latestDriveTimestamp ? 
+    `Updated ${Math.floor((now - latestDriveTimestamp)/60000)} min ago` : 'Be the first!';
+  dineUpdatedEl.textContent = latestDineTimestamp ? 
+    `Updated ${Math.floor((now - latestDineTimestamp)/60000)} min ago` : 'Be the first!';
+
+  // Show warning if any wait >=2h
+  warningEl.style.display = anyOver2h ? 'block' : 'none';
+}
