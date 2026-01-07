@@ -125,6 +125,7 @@ submitBtn.addEventListener('click', async () => {
   const totalMinutes = hours*60 + minutes;
 
   try {
+    // Add submission to Firestore
     const docRef = await db.collection('waitTimes').add({
       type: selectedLocation, // 'drive' or 'dine'
       minutesTotal: totalMinutes,
@@ -137,11 +138,8 @@ submitBtn.addEventListener('click', async () => {
     resetForm();
     formSection.classList.add('hidden');
 
-    // Wait for the serverTimestamp to populate
-    const newDoc = await docRef.get();
-    const newData = newDoc.data();
-
-    // Update only the submitted type immediately
+    // Immediately update **only the submitted type**
+    const now = Date.now();
     if(selectedLocation === 'drive') {
       driveTimeEl.textContent = formatTime(totalMinutes);
       driveUpdatedEl.textContent = 'Updated 0 min ago';
@@ -150,8 +148,8 @@ submitBtn.addEventListener('click', async () => {
       dineUpdatedEl.textContent = 'Updated 0 min ago';
     }
 
-    // Refresh everything else in background
-    fetchAndUpdate();
+    // Fetch latest Firestore data for both types in background
+    setTimeout(fetchAndUpdate, 500); // slight delay to allow Firestore server timestamp to register
 
   } catch(err) {
     console.error(err);
@@ -177,6 +175,7 @@ async function fetchAndUpdate() {
   snapshot.forEach(doc => {
     const data = doc.data();
     if(data.minutesTotal > 240) return; // ignore >4h
+
     if(data.type === 'drive') {
       driveTimes.push(data.minutesTotal);
       const t = data.timestamp?.toDate()?.getTime();
@@ -190,9 +189,11 @@ async function fetchAndUpdate() {
     if(data.minutesTotal >= 120) anyOver2h = true;
   });
 
+  // Update medians
   driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'No data';
   dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'No data';
 
+  // Update timestamps **per type**
   driveUpdatedEl.textContent = latestDriveTimestamp ? 
     `Updated ${Math.floor((now - latestDriveTimestamp)/60000)} min ago` : '';
   dineUpdatedEl.textContent = latestDineTimestamp ? 
