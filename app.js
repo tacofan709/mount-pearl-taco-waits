@@ -136,7 +136,9 @@ submitBtn.addEventListener('click', async () => {
     alert('Thanks for submitting! ✅');
     resetForm();
     formSection.classList.add('hidden');
-    fetchAndUpdate(); // refresh estimates
+
+    // Wait a little for serverTimestamp to be set
+    setTimeout(fetchAndUpdate, 500);
   } catch(err) {
     console.error(err);
     alert('Error submitting. Try again later.');
@@ -155,76 +157,35 @@ async function fetchAndUpdate() {
   const driveTimes = [];
   const dineTimes = [];
   let anyOver2h = false;
-  let latestTimestamp = 0;
-
-  snapshot.forEach(doc => {
-    const data = doc.data();
-    if(data.minutesTotal > 240) return; // ignore >4h
-    if(data.type === 'drive') driveTimes.push(data.minutesTotal);
-    else if(data.type === 'dine') dineTimes.push(data.minutesTotal);
-
-    if(data.minutesTotal >= 120) anyOver2h = true;
-    if(data.timestamp?.toDate()?.getTime() > latestTimestamp) {
-      latestTimestamp = data.timestamp.toDate().getTime();
-    }
-  });
-
-  driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'No data';
-  dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'No data';
-
-  const updatedText = latestTimestamp ? 
-    `Updated ${Math.floor((now - latestTimestamp)/60000)} min ago` : '';
-  driveUpdatedEl.textContent = updatedText;
-  dineUpdatedEl.textContent = updatedText;
-
-  warningEl.style.display = anyOver2h ? 'block' : 'none';
-}
-
-// ---------- FETCH & UPDATE ----------
-async function fetchAndUpdate() {
-  const now = Date.now();
-  const cutoff = new Date(now - 90*60*1000); // last 90 minutes
-
-  const snapshot = await db.collection('waitTimes')
-    .where('timestamp', '>=', cutoff)
-    .get();
-
-  const driveTimes = [];
-  const dineTimes = [];
-  let anyOver2h = false;
-
   let latestDriveTimestamp = 0;
   let latestDineTimestamp = 0;
 
   snapshot.forEach(doc => {
     const data = doc.data();
     if(data.minutesTotal > 240) return; // ignore >4h
-
     if(data.type === 'drive') {
       driveTimes.push(data.minutesTotal);
-      if(data.timestamp?.toDate()?.getTime() > latestDriveTimestamp) {
-        latestDriveTimestamp = data.timestamp.toDate().getTime();
-      }
+      const t = data.timestamp?.toDate()?.getTime();
+      if(t > latestDriveTimestamp) latestDriveTimestamp = t;
     } else if(data.type === 'dine') {
       dineTimes.push(data.minutesTotal);
-      if(data.timestamp?.toDate()?.getTime() > latestDineTimestamp) {
-        latestDineTimestamp = data.timestamp.toDate().getTime();
-      }
+      const t = data.timestamp?.toDate()?.getTime();
+      if(t > latestDineTimestamp) latestDineTimestamp = t;
     }
 
     if(data.minutesTotal >= 120) anyOver2h = true;
   });
 
-  // Update wait time text
-  driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'No data';
-  dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'No data';
+  driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'Be the first!';
+  dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'Be the first!';
 
-  // Update "Updated X min ago" separately
   driveUpdatedEl.textContent = latestDriveTimestamp ? 
-    `Updated ${Math.floor((now - latestDriveTimestamp)/60000)} min ago` : 'Be the first!';
+    `Updated ${Math.floor((now - latestDriveTimestamp)/60000)} min ago` : '';
   dineUpdatedEl.textContent = latestDineTimestamp ? 
-    `Updated ${Math.floor((now - latestDineTimestamp)/60000)} min ago` : 'Be the first!';
+    `Updated ${Math.floor((now - latestDineTimestamp)/60000)} min ago` : '';
 
-  // Show warning if any wait >=2h
   warningEl.style.display = anyOver2h ? 'block' : 'none';
 }
+
+// Initial fetch
+fetchAndUpdate();
