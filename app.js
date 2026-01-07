@@ -125,7 +125,7 @@ submitBtn.addEventListener('click', async () => {
   const totalMinutes = hours*60 + minutes;
 
   try {
-    await db.collection('waitTimes').add({
+    const docRef = await db.collection('waitTimes').add({
       type: selectedLocation, // 'drive' or 'dine'
       minutesTotal: totalMinutes,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -137,8 +137,22 @@ submitBtn.addEventListener('click', async () => {
     resetForm();
     formSection.classList.add('hidden');
 
-    // Wait a little for serverTimestamp to be set
-    setTimeout(fetchAndUpdate, 500);
+    // Wait for the serverTimestamp to populate
+    const newDoc = await docRef.get();
+    const newData = newDoc.data();
+
+    // Update only the submitted type immediately
+    if(selectedLocation === 'drive') {
+      driveTimeEl.textContent = formatTime(totalMinutes);
+      driveUpdatedEl.textContent = 'Updated 0 min ago';
+    } else if(selectedLocation === 'dine') {
+      dineTimeEl.textContent = formatTime(totalMinutes);
+      dineUpdatedEl.textContent = 'Updated 0 min ago';
+    }
+
+    // Refresh everything else in background
+    fetchAndUpdate();
+
   } catch(err) {
     console.error(err);
     alert('Error submitting. Try again later.');
@@ -166,18 +180,18 @@ async function fetchAndUpdate() {
     if(data.type === 'drive') {
       driveTimes.push(data.minutesTotal);
       const t = data.timestamp?.toDate()?.getTime();
-      if(t > latestDriveTimestamp) latestDriveTimestamp = t;
+      if(t && t > latestDriveTimestamp) latestDriveTimestamp = t;
     } else if(data.type === 'dine') {
       dineTimes.push(data.minutesTotal);
       const t = data.timestamp?.toDate()?.getTime();
-      if(t > latestDineTimestamp) latestDineTimestamp = t;
+      if(t && t > latestDineTimestamp) latestDineTimestamp = t;
     }
 
     if(data.minutesTotal >= 120) anyOver2h = true;
   });
 
-  driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'Be the first!';
-  dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'Be the first!';
+  driveTimeEl.textContent = driveTimes.length ? formatTime(median(driveTimes)) : 'No data';
+  dineTimeEl.textContent = dineTimes.length ? formatTime(median(dineTimes)) : 'No data';
 
   driveUpdatedEl.textContent = latestDriveTimestamp ? 
     `Updated ${Math.floor((now - latestDriveTimestamp)/60000)} min ago` : '';
