@@ -163,7 +163,8 @@ async function fetchAndUpdate() {
   const cutoff = new Date(now - 90*60*1000); // last 90 minutes
 
   const snapshot = await db.collection('waitTimes')
-    .where('timestamp', '>=', cutoff)
+    .orderBy('timestamp', 'desc')
+    .limit(50)
     .get();
 
   const driveTimes = [];
