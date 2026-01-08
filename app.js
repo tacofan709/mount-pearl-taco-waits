@@ -31,10 +31,22 @@ const dineUpdatedEl = document.getElementById('dineUpdated');
 const warningEl = document.getElementById('warning');
 
 // ---------- UTILS ----------
-function median(values) { ... }
-function formatTime(minutes) { ... }
+function median(values) {
+  if (!values.length) return 0;
+  values.sort((a, b) => a - b);
+  const mid = Math.floor(values.length / 2);
+  return values.length % 2
+    ? values[mid]
+    : Math.round((values[mid - 1] + values[mid]) / 2);
+}
 
-// Move timeAgo here BEFORE fetchAndUpdateFromCache
+function formatTime(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h > 0 ? h + 'h ' : ''}${m}m`;
+}
+
+// Convert timestamp to "Updated X min/h ago"
 function timeAgo(ts) {
   if (!ts) return '';
   const diffMin = Math.floor((Date.now() - ts) / 60000);
@@ -48,6 +60,33 @@ function timeAgo(ts) {
     ? 'Updated 1 hour ago'
     : `Updated ${diffHr} hours ago`;
 }
+
+// ---------- CACHE DISPLAY ----------
+function fetchAndUpdateFromCache() {
+  const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
+
+  if (cached.drive) {
+    driveTimeEl.textContent = cached.drive.time || 'No data';
+    driveUpdatedEl.textContent = timeAgo(cached.drive.updatedAt);
+  } else {
+    driveTimeEl.textContent = 'No data';
+    driveUpdatedEl.textContent = '';
+  }
+
+  if (cached.dine) {
+    dineTimeEl.textContent = cached.dine.time || 'No data';
+    dineUpdatedEl.textContent = timeAgo(cached.dine.updatedAt);
+  } else {
+    dineTimeEl.textContent = 'No data';
+    dineUpdatedEl.textContent = '';
+  }
+
+  warningEl.style.display = cached.warning ? 'block' : 'none';
+}
+
+// Run initially and every minute
+fetchAndUpdateFromCache();
+setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
 // ---------- DEVICE ID ----------
 let anonId = localStorage.getItem('anonId');
