@@ -37,10 +37,7 @@ const minutesInput = document.getElementById("minutes");
 // -------------------------
 // Show / hide form
 // -------------------------
-openFormBtn.addEventListener("click", () => {
-  formSection.classList.remove("hidden");
-});
-
+openFormBtn.addEventListener("click", () => formSection.classList.remove("hidden"));
 cancelBtn.addEventListener("click", () => {
   formSection.classList.add("hidden");
   resetForm();
@@ -70,18 +67,17 @@ submitBtn.addEventListener("click", async () => {
   const minutes = parseInt(minutesInput.value) || 0;
   let totalMinutes = hours * 60 + minutes;
 
-  // Max time 4 hours
-  if (totalMinutes > 240) {
-    alert("Maximum wait time is 4 hours.");
-    return;
-  }
-
   if (totalMinutes <= 0) {
     alert("Please enter a valid wait time.");
     return;
   }
 
-  // Check 45 min cooldown
+  if (totalMinutes > 240) {
+    alert("Maximum wait time is 4 hours.");
+    return;
+  }
+
+  // 45-minute cooldown per location
   const lastSubmit = localStorage.getItem(`lastSubmit_${selectedLocation}`);
   const now = Date.now();
   if (lastSubmit && now - lastSubmit < 45 * 60 * 1000) {
@@ -102,7 +98,7 @@ submitBtn.addEventListener("click", async () => {
     alert("Thanks! Your wait time has been submitted.");
     formSection.classList.add("hidden");
     resetForm();
-    fetchLatestWaitTimes(); // Update display after submission
+    fetchLatestWaitTimes();
   } catch (error) {
     console.error("Error submitting wait time:", error);
     alert("Oops! Something went wrong. Please try again.");
@@ -120,7 +116,7 @@ function resetForm() {
 }
 
 // -------------------------
-// Fetch latest average wait times
+// Fetch latest average wait times safely
 // -------------------------
 async function fetchLatestWaitTimes() {
   try {
@@ -128,42 +124,43 @@ async function fetchLatestWaitTimes() {
     let showWarning = false;
 
     for (const loc of locations) {
-      const querySnapshot = await db.collection("waitTimes")
+      const snapshot = await db.collection("waitTimes")
         .where("location", "==", loc)
         .orderBy("timestamp", "desc")
         .limit(10)
         .get();
 
-      if (!querySnapshot.empty) {
+      if (!snapshot.empty) {
         let totalMinutes = 0;
         let latestTimestamp = null;
 
-        querySnapshot.docs.forEach(doc => {
+        snapshot.docs.forEach(doc => {
           const data = doc.data();
           totalMinutes += data.minutes;
-          if (!latestTimestamp || data.timestamp.toDate() > latestTimestamp) {
-            latestTimestamp = data.timestamp.toDate();
+          if (data.timestamp) { // ✅ Only if timestamp exists
+            const tsDate = data.timestamp.toDate();
+            if (!latestTimestamp || tsDate > latestTimestamp) {
+              latestTimestamp = tsDate;
+            }
           }
         });
 
-        const avgMinutes = Math.round(totalMinutes / querySnapshot.size);
+        const avgMinutes = Math.round(totalMinutes / snapshot.size);
         const h = Math.floor(avgMinutes / 60);
         const m = avgMinutes % 60;
         const timeString = h > 0 ? `${h}h ${m}m` : `${m}m`;
 
         if (loc === "drive") {
           driveTimeEl.textContent = timeString;
-          driveUpdatedEl.textContent = latestTimestamp ? `Updated: ${latestTimestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : "";
+          driveUpdatedEl.textContent = latestTimestamp ? `Updated: ${latestTimestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : "";
         } else {
           dineTimeEl.textContent = timeString;
-          dineUpdatedEl.textContent = latestTimestamp ? `Updated: ${latestTimestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : "";
+          dineUpdatedEl.textContent = latestTimestamp ? `Updated: ${latestTimestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : "";
         }
 
-        // Warning if average over 2 hours
-        if (avgMinutes > 120) {
-          showWarning = true;
-        }
+        if (avgMinutes > 120) showWarning = true;
       } else {
+        // No data yet
         if (loc === "drive") {
           driveTimeEl.textContent = "No data yet";
           driveUpdatedEl.textContent = "";
