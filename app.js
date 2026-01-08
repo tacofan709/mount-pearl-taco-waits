@@ -46,7 +46,6 @@ function formatTime(minutes) {
   return `${h > 0 ? h + 'h ' : ''}${m}m`;
 }
 
-// Convert timestamp to "Updated X min/h ago"
 function timeAgo(ts) {
   if (!ts) return '';
   const diffMin = Math.floor((Date.now() - ts) / 60000);
@@ -60,33 +59,6 @@ function timeAgo(ts) {
     ? 'Updated 1 hour ago'
     : `Updated ${diffHr} hours ago`;
 }
-
-// ---------- CACHE DISPLAY ----------
-function fetchAndUpdateFromCache() {
-  const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
-
-  if (cached.drive) {
-    driveTimeEl.textContent = cached.drive.time || 'No data';
-    driveUpdatedEl.textContent = timeAgo(cached.drive.updatedAt);
-  } else {
-    driveTimeEl.textContent = 'No data';
-    driveUpdatedEl.textContent = '';
-  }
-
-  if (cached.dine) {
-    dineTimeEl.textContent = cached.dine.time || 'No data';
-    dineUpdatedEl.textContent = timeAgo(cached.dine.updatedAt);
-  } else {
-    dineTimeEl.textContent = 'No data';
-    dineUpdatedEl.textContent = '';
-  }
-
-  warningEl.style.display = cached.warning ? 'block' : 'none';
-}
-
-// Run initially and every minute
-fetchAndUpdateFromCache();
-setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
 // ---------- DEVICE ID ----------
 let anonId = localStorage.getItem('anonId');
@@ -145,7 +117,7 @@ function fetchAndUpdateFromCache() {
   const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
 
   if (cached.drive) {
-    driveTimeEl.textContent = cached.drive.time;
+    driveTimeEl.textContent = cached.drive.time || 'No data';
     driveUpdatedEl.textContent = timeAgo(cached.drive.updatedAt);
   } else {
     driveTimeEl.textContent = 'No data';
@@ -153,7 +125,7 @@ function fetchAndUpdateFromCache() {
   }
 
   if (cached.dine) {
-    dineTimeEl.textContent = cached.dine.time;
+    dineTimeEl.textContent = cached.dine.time || 'No data';
     dineUpdatedEl.textContent = timeAgo(cached.dine.updatedAt);
   } else {
     dineTimeEl.textContent = 'No data';
@@ -163,6 +135,7 @@ function fetchAndUpdateFromCache() {
   warningEl.style.display = cached.warning ? 'block' : 'none';
 }
 
+// Initial cache display + update every minute
 fetchAndUpdateFromCache();
 setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
