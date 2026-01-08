@@ -32,13 +32,12 @@ const warningEl = document.getElementById('warning');
 
 // ---------- UTILS ----------
 function median(values) {
-  if (values.length === 0) return 0;
+  if (!values.length) return 0;
   values.sort((a, b) => a - b);
   const mid = Math.floor(values.length / 2);
-  if (values.length % 2 === 0) {
-    return Math.round((values[mid - 1] + values[mid]) / 2);
-  }
-  return values[mid];
+  return values.length % 2
+    ? values[mid]
+    : Math.round((values[mid - 1] + values[mid]) / 2);
 }
 
 function formatTime(minutes) {
@@ -47,15 +46,29 @@ function formatTime(minutes) {
   return `${h > 0 ? h + 'h ' : ''}${m}m`;
 }
 
-// Generate per-device anonymous ID
+function timeAgo(ts) {
+  if (!ts) return '';
+  const diffMin = Math.floor((Date.now() - ts) / 60000);
+
+  if (diffMin < 1) return 'Updated just now';
+  if (diffMin === 1) return 'Updated 1 min ago';
+  if (diffMin < 60) return `Updated ${diffMin} min ago`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  return diffHr === 1
+    ? 'Updated 1 hour ago'
+    : `Updated ${diffHr} hours ago`;
+}
+
+// ---------- DEVICE ID ----------
 let anonId = localStorage.getItem('anonId');
 if (!anonId) {
   anonId = Math.random().toString(36).substring(2, 12);
   localStorage.setItem('anonId', anonId);
 }
 
-// Cooldown key
 const lastSubmitKey = 'lastSubmitTime';
+const lastHourlyFetchKey = 'lastHourlyFetch';
 
 // ---------- FORM LOGIC ----------
 openFormBtn.addEventListener('click', () => {
@@ -72,7 +85,7 @@ locationButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     locationButtons.forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
-    selectedLocation = btn.getAttribute('data-type'); // 'drive' or 'dine'
+    selectedLocation = btn.dataset.type; // drive | dine
   });
 });
 
@@ -84,41 +97,22 @@ function resetForm() {
 }
 
 function validateInput() {
-  const hours = parseInt(hoursInput.value);
-  const minutes = parseInt(minutesInput.value);
+  const h = parseInt(hoursInput.value);
+  const m = parseInt(minutesInput.value);
 
-  if (!selectedLocation) {
-    alert('Please select Drive-thru or Dine-in / Walk-in.');
-    return false;
-  }
+  if (!selectedLocation) return alert('Select Drive-thru or Dine-in'), false;
+  if (isNaN(h) || isNaN(m)) return alert('Enter valid numbers'), false;
+  if (h < 0 || h > 4 || m < 0 || m > 59) return alert('Unrealistic time'), false;
+  if (h === 0 && m === 0) return alert('Wait time cannot be 0'), false;
 
-  if (isNaN(hours) || isNaN(minutes)) {
-    alert('Please enter valid numbers.');
-    return false;
-  }
-
-  if (hours < 0 || hours > 4 || minutes < 0 || minutes > 59) {
-    alert('Please enter a realistic wait time (0-4 hours, 0-59 minutes).');
-    return false;
-  }
-
-  if (hours === 0 && minutes === 0) {
-    alert('Wait time cannot be 0.');
-    return false;
-  }
-
-  // Check cooldown
   const last = parseInt(localStorage.getItem(lastSubmitKey)) || 0;
-  const now = Date.now();
-  if (now - last < 15 * 60 * 1000) { // 15 min cooldown
-    alert('You can submit again in a few minutes. ⏳');
-    return false;
-  }
+  if (Date.now() - last < 15 * 60 * 1000)
+    return alert('Please wait before submitting again'), false;
 
   return true;
 }
 
-// ---------- LOCALSTORAGE FETCH & UPDATE ----------
+// ---------- CACHE DISPLAY ----------
 function fetchAndUpdateFromCache() {
   const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
 
@@ -129,11 +123,10 @@ function fetchAndUpdateFromCache() {
     driveTimeEl.textContent = 'No data';
     driveUpdatedEl.textContent = '';
   }
-setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
   if (cached.dine) {
     dineTimeEl.textContent = cached.dine.time;
-    dineUpdatedEl.textContent = cached.dine.updated;
+    dineUpdatedEl.textContent = timeAgo(cached.dine.updatedAt);
   } else {
     dineTimeEl.textContent = 'No data';
     dineUpdatedEl.textContent = '';
@@ -142,113 +135,86 @@ setInterval(fetchAndUpdateFromCache, 60 * 1000);
   warningEl.style.display = cached.warning ? 'block' : 'none';
 }
 
-// Initial load from cache
 fetchAndUpdateFromCache();
+setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
-// ---------- FIREBASE SUBMIT ----------
+// ---------- SUBMIT ----------
 submitBtn.addEventListener('click', async () => {
   if (!validateInput()) return;
 
-  const hours = parseInt(hoursInput.value);
-  const minutes = parseInt(minutesInput.value);
-  const totalMinutes = hours * 60 + minutes;
+  const totalMinutes =
+    parseInt(hoursInput.value) * 60 + parseInt(minutesInput.value);
 
   try {
-    // Add submission to Firestore (1 write only)
     await db.collection('waitTimes').add({
-      type: selectedLocation, // 'drive' or 'dine'
+      type: selectedLocation,
       minutesTotal: totalMinutes,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      anonId: anonId
+      anonId
     });
 
     localStorage.setItem(lastSubmitKey, Date.now());
-    alert('Thanks for submitting! ✅');
+
+    const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
+    cached[selectedLocation] = {
+      time: formatTime(totalMinutes),
+      updatedAt: Date.now()
+    };
+    cached.warning = totalMinutes >= 120 || cached.warning;
+
+    localStorage.setItem('cachedMedians', JSON.stringify(cached));
+    fetchAndUpdateFromCache();
+
+    alert('Thanks for submitting!');
     resetForm();
     formSection.classList.add('hidden');
-
-    // Update UI immediately
-    const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
-
-    if (selectedLocation === 'drive') {
-      driveTimeEl.textContent = formatTime(totalMinutes);
-      driveUpdatedEl.textContent = 'Updated 0 min ago';
-      cached.drive = { time: formatTime(totalMinutes), updated: 'Updated 0 min ago' };
-    } else if (selectedLocation === 'dine') {
-      dineTimeEl.textContent = formatTime(totalMinutes);
-      dineUpdatedEl.textContent = 'Updated 0 min ago';
-      cached.dine = { time: formatTime(totalMinutes), updated: 'Updated 0 min ago' };
-    }
-
-    cached.warning = totalMinutes >= 120 || cached.warning;
-    localStorage.setItem('cachedMedians', JSON.stringify(cached));
-
-  } catch (err) {
-    console.error(err);
-    alert('Error submitting. Try again later.');
+  } catch (e) {
+    console.error(e);
+    alert('Submission failed');
   }
 });
-// ---------- HOURLY MEDIAN UPDATE ----------
-const lastHourlyFetchKey = 'lastHourlyFetch';
 
+// ---------- HOURLY MEDIAN FETCH ----------
 async function updateMediansFromFirestore() {
   const now = Date.now();
-  const lastFetch = parseInt(localStorage.getItem(lastHourlyFetchKey)) || 0;
-
-  // Only fetch once per hour
-  if (now - lastFetch < 60 * 60 * 1000) return;
+  const last = parseInt(localStorage.getItem(lastHourlyFetchKey)) || 0;
+  if (now - last < 60 * 60 * 1000) return;
 
   try {
-    const snapshot = await db.collection('waitTimes')
+    const snap = await db.collection('waitTimes')
       .orderBy('timestamp', 'desc')
-      .limit(50) // small sample to save reads
+      .limit(50)
       .get();
 
-    const driveTimes = [];
-    const dineTimes = [];
+    const drive = [];
+    const dine = [];
     let warning = false;
 
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (!data.minutesTotal || data.minutesTotal > 240) return;
-
-      if (data.type === 'drive') driveTimes.push(data.minutesTotal);
-      if (data.type === 'dine') dineTimes.push(data.minutesTotal);
-      if (data.minutesTotal >= 120) warning = true;
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!d.minutesTotal || d.minutesTotal > 240) return;
+      if (d.type === 'drive') drive.push(d.minutesTotal);
+      if (d.type === 'dine') dine.push(d.minutesTotal);
+      if (d.minutesTotal >= 120) warning = true;
     });
 
     const cached = {
-      drive: driveTimes.length ? { time: formatTime(median(driveTimes)), updatedAT: Date.now() } : null,
-      dine: dineTimes.length ? { time: formatTime(median(dineTimes)), updatedAT: Date.now() } : null,
-      warning: warning
+      drive: drive.length
+        ? { time: formatTime(median(drive)), updatedAt: now }
+        : null,
+      dine: dine.length
+        ? { time: formatTime(median(dine)), updatedAt: now }
+        : null,
+      warning
     };
 
     localStorage.setItem('cachedMedians', JSON.stringify(cached));
     localStorage.setItem(lastHourlyFetchKey, now);
-
-    function timeAgo(ts) {
-  const diffMin = Math.floor((Date.now() - ts) / 60000);
-
-  if (diffMin < 1) return 'Updated just now';
-  if (diffMin === 1) return 'Updated 1 min ago';
-  if (diffMin < 60) return `Updated ${diffMin} min ago`;
-
-  const diffHr = Math.floor(diffMin / 60);
-  return diffHr === 1
-    ? 'Updated 1 hour ago'
-    : `Updated ${diffHr} hours ago`;
-}
-
-    // Update UI
     fetchAndUpdateFromCache();
-
-  } catch (err) {
-    console.error('Error updating medians from Firestore:', err);
+  } catch (e) {
+    console.error('Firestore fetch error', e);
   }
 }
 
-// Run on page load
 updateMediansFromFirestore();
-
-// Optional: run every 5 minutes in background to refresh cached medians (still rate-limited by lastHourlyFetchKey)
 setInterval(updateMediansFromFirestore, 5 * 60 * 1000);
