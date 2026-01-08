@@ -31,21 +31,10 @@ const dineUpdatedEl = document.getElementById('dineUpdated');
 const warningEl = document.getElementById('warning');
 
 // ---------- UTILS ----------
-function median(values) {
-  if (!values.length) return 0;
-  values.sort((a, b) => a - b);
-  const mid = Math.floor(values.length / 2);
-  return values.length % 2
-    ? values[mid]
-    : Math.round((values[mid - 1] + values[mid]) / 2);
-}
+function median(values) { ... }
+function formatTime(minutes) { ... }
 
-function formatTime(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h > 0 ? h + 'h ' : ''}${m}m`;
-}
-
+// Move timeAgo here BEFORE fetchAndUpdateFromCache
 function timeAgo(ts) {
   if (!ts) return '';
   const diffMin = Math.floor((Date.now() - ts) / 60000);
