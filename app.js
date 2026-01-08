@@ -116,20 +116,26 @@ function validateInput() {
 function fetchAndUpdateFromCache() {
   const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
 
+  // DRIVE
   if (cached.drive) {
     driveTimeEl.textContent = cached.drive.time || 'No data';
-    driveUpdatedEl.textContent = timeAgo(cached.drive.updatedAt);
+    driveUpdatedEl.textContent = cached.drive.updatedAt
+      ? timeAgo(cached.drive.updatedAt)
+      : 'No updates yet';
   } else {
     driveTimeEl.textContent = 'No data';
-    driveUpdatedEl.textContent = '';
+    driveUpdatedEl.textContent = 'No updates yet';
   }
 
+  // DINE
   if (cached.dine) {
     dineTimeEl.textContent = cached.dine.time || 'No data';
-    dineUpdatedEl.textContent = timeAgo(cached.dine.updatedAt);
+    dineUpdatedEl.textContent = cached.dine.updatedAt
+      ? timeAgo(cached.dine.updatedAt)
+      : 'No updates yet';
   } else {
     dineTimeEl.textContent = 'No data';
-    dineUpdatedEl.textContent = '';
+    dineUpdatedEl.textContent = 'No updates yet';
   }
 
   warningEl.style.display = cached.warning ? 'block' : 'none';
@@ -156,6 +162,7 @@ submitBtn.addEventListener('click', async () => {
 
     localStorage.setItem(lastSubmitKey, Date.now());
 
+    // Update cache immediately
     const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
     cached[selectedLocation] = {
       time: formatTime(totalMinutes),
@@ -199,13 +206,14 @@ async function updateMediansFromFirestore() {
       if (d.minutesTotal >= 120) warning = true;
     });
 
+    // Always include updatedAt
     const cached = {
       drive: drive.length
         ? { time: formatTime(median(drive)), updatedAt: now }
-        : null,
+        : { time: 'No data', updatedAt: null },
       dine: dine.length
         ? { time: formatTime(median(dine)), updatedAt: now }
-        : null,
+        : { time: 'No data', updatedAt: null },
       warning
     };
 
@@ -217,5 +225,6 @@ async function updateMediansFromFirestore() {
   }
 }
 
+// Run immediately + every 5 minutes
 updateMediansFromFirestore();
 setInterval(updateMediansFromFirestore, 5 * 60 * 1000);
