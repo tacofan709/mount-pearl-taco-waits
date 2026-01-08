@@ -53,7 +53,12 @@ function timeAgo(ts) {
   return diffHr === 1 ? 'Updated 1 hour ago' : `Updated ${diffHr} hours ago`;
 }
 
-// ---------- DEVICE ID ----------
+function isStale(ts, maxAgeMinutes = 60) {
+  if (!ts) return true;
+  return (Date.now() - ts) > maxAgeMinutes * 60000;
+}
+
+// ---------- DEVICE ID & KEYS ----------
 let anonId = localStorage.getItem('anonId');
 if (!anonId) {
   anonId = Math.random().toString(36).substring(2, 12);
@@ -106,7 +111,6 @@ function validateInput() {
 
 // ---------- CACHE DISPLAY ----------
 function initializeCache() {
-  // Always ensure cachedMedians exists
   if (!localStorage.getItem('cachedMedians')) {
     const initialCache = {
       drive: { time: 'No data', updatedAt: null },
@@ -120,18 +124,17 @@ function initializeCache() {
 function fetchAndUpdateFromCache() {
   const cached = JSON.parse(localStorage.getItem('cachedMedians'));
 
-  // DRIVE
-  driveTimeEl.textContent = cached.drive.time || 'No data';
-  driveUpdatedEl.textContent = cached.drive.updatedAt ? timeAgo(cached.drive.updatedAt) : 'No updates yet';
+  const driveStale = isStale(cached.drive.updatedAt);
+  driveTimeEl.textContent = driveStale ? 'No data' : cached.drive.time;
+  driveUpdatedEl.textContent = driveStale ? '' : timeAgo(cached.drive.updatedAt);
 
-  // DINE
-  dineTimeEl.textContent = cached.dine.time || 'No data';
-  dineUpdatedEl.textContent = cached.dine.updatedAt ? timeAgo(cached.dine.updatedAt) : 'No updates yet';
+  const dineStale = isStale(cached.dine.updatedAt);
+  dineTimeEl.textContent = dineStale ? 'No data' : cached.dine.time;
+  dineUpdatedEl.textContent = dineStale ? '' : timeAgo(cached.dine.updatedAt);
 
-  warningEl.style.display = cached.warning ? 'block' : 'none';
+  warningEl.style.display = (( !driveStale && cached.drive.time !== 'No data') || (!dineStale && cached.dine.time !== 'No data')) && cached.warning ? 'block' : 'none';
 }
 
-// Initial cache + update every minute
 initializeCache();
 fetchAndUpdateFromCache();
 setInterval(fetchAndUpdateFromCache, 60 * 1000);
@@ -152,7 +155,6 @@ submitBtn.addEventListener('click', async () => {
 
     localStorage.setItem(lastSubmitKey, Date.now());
 
-    // Update cache immediately
     const cached = JSON.parse(localStorage.getItem('cachedMedians'));
     cached[selectedLocation] = { time: formatTime(totalMinutes), updatedAt: Date.now() };
     cached.warning = totalMinutes >= 120 || cached.warning;
@@ -168,7 +170,7 @@ submitBtn.addEventListener('click', async () => {
   }
 });
 
-// ---------- HOURLY MEDIAN FETCH ----------
+// ---------- HOURLY FIRESTORE MEDIAN FETCH ----------
 async function updateMediansFromFirestore() {
   const now = Date.now();
   const last = parseInt(localStorage.getItem(lastHourlyFetchKey)) || 0;
@@ -193,4 +195,19 @@ async function updateMediansFromFirestore() {
     });
 
     const cached = {
-      drive: drive.length ? { time: formatTime(median(drive)), updatedAt: now
+      drive: drive.length ? { time: formatTime(median(drive)), updatedAt: now } : { time: 'No data', updatedAt: null },
+      dine: dine.length ? { time: formatTime(median(dine)), updatedAt: now } : { time: 'No data', updatedAt: null },
+      warning
+    };
+
+    localStorage.setItem('cachedMedians', JSON.stringify(cached));
+    localStorage.setItem(lastHourlyFetchKey, now);
+
+    fetchAndUpdateFromCache();
+  } catch (e) {
+    console.error('Error fetching medians:', e);
+  }
+}
+
+updateMediansFromFirestore();
+setInterval(updateMediansFromFirestore, 5 * 60 * 1000);
