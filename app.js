@@ -8,7 +8,6 @@ const firebaseConfig = {
   appId: "1:182160934094:web:a116715546f9364945fc9f"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
@@ -35,9 +34,7 @@ function median(values) {
   if (!values.length) return 0;
   values.sort((a, b) => a - b);
   const mid = Math.floor(values.length / 2);
-  return values.length % 2
-    ? values[mid]
-    : Math.round((values[mid - 1] + values[mid]) / 2);
+  return values.length % 2 ? values[mid] : Math.round((values[mid - 1] + values[mid]) / 2);
 }
 
 function formatTime(minutes) {
@@ -49,15 +46,11 @@ function formatTime(minutes) {
 function timeAgo(ts) {
   if (!ts) return '';
   const diffMin = Math.floor((Date.now() - ts) / 60000);
-
   if (diffMin < 1) return 'Updated just now';
   if (diffMin === 1) return 'Updated 1 min ago';
   if (diffMin < 60) return `Updated ${diffMin} min ago`;
-
   const diffHr = Math.floor(diffMin / 60);
-  return diffHr === 1
-    ? 'Updated 1 hour ago'
-    : `Updated ${diffHr} hours ago`;
+  return diffHr === 1 ? 'Updated 1 hour ago' : `Updated ${diffHr} hours ago`;
 }
 
 // ---------- DEVICE ID ----------
@@ -100,48 +93,46 @@ function validateInput() {
   const h = parseInt(hoursInput.value);
   const m = parseInt(minutesInput.value);
 
-  if (!selectedLocation) return alert('Select Drive-thru or Dine-in'), false;
-  if (isNaN(h) || isNaN(m)) return alert('Enter valid numbers'), false;
-  if (h < 0 || h > 4 || m < 0 || m > 59) return alert('Unrealistic time'), false;
-  if (h === 0 && m === 0) return alert('Wait time cannot be 0'), false;
+  if (!selectedLocation) { alert('Select Drive-thru or Dine-in'); return false; }
+  if (isNaN(h) || isNaN(m)) { alert('Enter valid numbers'); return false; }
+  if (h < 0 || h > 4 || m < 0 || m > 59) { alert('Unrealistic time'); return false; }
+  if (h === 0 && m === 0) { alert('Wait time cannot be 0'); return false; }
 
   const last = parseInt(localStorage.getItem(lastSubmitKey)) || 0;
-  if (Date.now() - last < 15 * 60 * 1000)
-    return alert('Please wait before submitting again'), false;
+  if (Date.now() - last < 15 * 60 * 1000) { alert('Please wait before submitting again'); return false; }
 
   return true;
 }
 
 // ---------- CACHE DISPLAY ----------
+function initializeCache() {
+  // Always ensure cachedMedians exists
+  if (!localStorage.getItem('cachedMedians')) {
+    const initialCache = {
+      drive: { time: 'No data', updatedAt: null },
+      dine: { time: 'No data', updatedAt: null },
+      warning: false
+    };
+    localStorage.setItem('cachedMedians', JSON.stringify(initialCache));
+  }
+}
+
 function fetchAndUpdateFromCache() {
-  const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
+  const cached = JSON.parse(localStorage.getItem('cachedMedians'));
 
   // DRIVE
-  if (cached.drive) {
-    driveTimeEl.textContent = cached.drive.time || 'No data';
-    driveUpdatedEl.textContent = cached.drive.updatedAt
-      ? timeAgo(cached.drive.updatedAt)
-      : 'No updates yet';
-  } else {
-    driveTimeEl.textContent = 'No data';
-    driveUpdatedEl.textContent = 'No updates yet';
-  }
+  driveTimeEl.textContent = cached.drive.time || 'No data';
+  driveUpdatedEl.textContent = cached.drive.updatedAt ? timeAgo(cached.drive.updatedAt) : 'No updates yet';
 
   // DINE
-  if (cached.dine) {
-    dineTimeEl.textContent = cached.dine.time || 'No data';
-    dineUpdatedEl.textContent = cached.dine.updatedAt
-      ? timeAgo(cached.dine.updatedAt)
-      : 'No updates yet';
-  } else {
-    dineTimeEl.textContent = 'No data';
-    dineUpdatedEl.textContent = 'No updates yet';
-  }
+  dineTimeEl.textContent = cached.dine.time || 'No data';
+  dineUpdatedEl.textContent = cached.dine.updatedAt ? timeAgo(cached.dine.updatedAt) : 'No updates yet';
 
   warningEl.style.display = cached.warning ? 'block' : 'none';
 }
 
-// Initial cache display + update every minute
+// Initial cache + update every minute
+initializeCache();
 fetchAndUpdateFromCache();
 setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
@@ -149,8 +140,7 @@ setInterval(fetchAndUpdateFromCache, 60 * 1000);
 submitBtn.addEventListener('click', async () => {
   if (!validateInput()) return;
 
-  const totalMinutes =
-    parseInt(hoursInput.value) * 60 + parseInt(minutesInput.value);
+  const totalMinutes = parseInt(hoursInput.value) * 60 + parseInt(minutesInput.value);
 
   try {
     await db.collection('waitTimes').add({
@@ -163,19 +153,15 @@ submitBtn.addEventListener('click', async () => {
     localStorage.setItem(lastSubmitKey, Date.now());
 
     // Update cache immediately
-    const cached = JSON.parse(localStorage.getItem('cachedMedians')) || {};
-    cached[selectedLocation] = {
-      time: formatTime(totalMinutes),
-      updatedAt: Date.now()
-    };
+    const cached = JSON.parse(localStorage.getItem('cachedMedians'));
+    cached[selectedLocation] = { time: formatTime(totalMinutes), updatedAt: Date.now() };
     cached.warning = totalMinutes >= 120 || cached.warning;
-
     localStorage.setItem('cachedMedians', JSON.stringify(cached));
-    fetchAndUpdateFromCache();
 
-    alert('Thanks for submitting!');
+    fetchAndUpdateFromCache();
     resetForm();
     formSection.classList.add('hidden');
+    alert('Thanks for submitting!');
   } catch (e) {
     console.error(e);
     alert('Submission failed');
@@ -206,25 +192,5 @@ async function updateMediansFromFirestore() {
       if (d.minutesTotal >= 120) warning = true;
     });
 
-    // Always include updatedAt
     const cached = {
-      drive: drive.length
-        ? { time: formatTime(median(drive)), updatedAt: now }
-        : { time: 'No data', updatedAt: null },
-      dine: dine.length
-        ? { time: formatTime(median(dine)), updatedAt: now }
-        : { time: 'No data', updatedAt: null },
-      warning
-    };
-
-    localStorage.setItem('cachedMedians', JSON.stringify(cached));
-    localStorage.setItem(lastHourlyFetchKey, now);
-    fetchAndUpdateFromCache();
-  } catch (e) {
-    console.error('Firestore fetch error', e);
-  }
-}
-
-// Run immediately + every 5 minutes
-updateMediansFromFirestore();
-setInterval(updateMediansFromFirestore, 5 * 60 * 1000);
+      drive: drive.length ? { time: formatTime(median(drive)), updatedAt: now
