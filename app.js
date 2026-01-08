@@ -32,22 +32,24 @@ const warningEl = document.getElementById('warning');
 
 // ---------- UTILS ----------
 function median(values) {
-  if(values.length === 0) return 0;
-  values.sort((a,b)=>a-b);
-  const mid = Math.floor(values.length/2);
-  if(values.length %2 ===0) return Math.round((values[mid-1]+values[mid])/2);
+  if (values.length === 0) return 0;
+  values.sort((a, b) => a - b);
+  const mid = Math.floor(values.length / 2);
+  if (values.length % 2 === 0) {
+    return Math.round((values[mid - 1] + values[mid]) / 2);
+  }
   return values[mid];
 }
 
 function formatTime(minutes) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return `${h>0?h+'h ':''}${m}m`;
+  return `${h > 0 ? h + 'h ' : ''}${m}m`;
 }
 
 // Generate per-device anonymous ID
 let anonId = localStorage.getItem('anonId');
-if(!anonId) {
+if (!anonId) {
   anonId = Math.random().toString(36).substring(2, 12);
   localStorage.setItem('anonId', anonId);
 }
@@ -108,7 +110,7 @@ function validateInput() {
   // Check cooldown
   const last = parseInt(localStorage.getItem(lastSubmitKey)) || 0;
   const now = Date.now();
-  if(now - last < 15*60*1000) { // 15 min cooldown
+  if (now - last < 15 * 60 * 1000) { // 15 min cooldown
     alert('You can submit again in a few minutes. ⏳');
     return false;
   }
@@ -118,15 +120,15 @@ function validateInput() {
 
 // ---------- FIREBASE SUBMIT ----------
 submitBtn.addEventListener('click', async () => {
-  if(!validateInput()) return;
+  if (!validateInput()) return;
 
   const hours = parseInt(hoursInput.value);
   const minutes = parseInt(minutesInput.value);
-  const totalMinutes = hours*60 + minutes;
+  const totalMinutes = hours * 60 + minutes;
 
   try {
     // Add submission to Firestore
-    const docRef = await db.collection('waitTimes').add({
+    await db.collection('waitTimes').add({
       type: selectedLocation, // 'drive' or 'dine'
       minutesTotal: totalMinutes,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -139,19 +141,17 @@ submitBtn.addEventListener('click', async () => {
     formSection.classList.add('hidden');
 
     // Immediately update **only the submitted type**
-    const now = Date.now();
-    if(selectedLocation === 'drive') {
+    if (selectedLocation === 'drive') {
       driveTimeEl.textContent = formatTime(totalMinutes);
       driveUpdatedEl.textContent = 'Updated 0 min ago';
-    } else if(selectedLocation === 'dine') {
+    } else if (selectedLocation === 'dine') {
       dineTimeEl.textContent = formatTime(totalMinutes);
       dineUpdatedEl.textContent = 'Updated 0 min ago';
     }
 
     // Fetch latest Firestore data for both types in background
     setTimeout(fetchAndUpdate, 500); // slight delay to allow Firestore server timestamp to register
-
-  } catch(err) {
+  } catch (err) {
     console.error(err);
     alert('Error submitting. Try again later.');
   }
@@ -160,7 +160,6 @@ submitBtn.addEventListener('click', async () => {
 // ---------- FETCH & UPDATE ----------
 async function fetchAndUpdate() {
   const now = Date.now();
-  const cutoff = new Date(now - 90*60*1000); // last 90 minutes
 
   const snapshot = await db.collection('waitTimes')
     .orderBy('timestamp', 'desc')
@@ -175,19 +174,19 @@ async function fetchAndUpdate() {
 
   snapshot.forEach(doc => {
     const data = doc.data();
-    if(data.minutesTotal > 240) return; // ignore >4h
+    if (data.minutesTotal > 240) return; // ignore >4h
 
-    if(data.type === 'drive') {
+    if (data.type === 'drive') {
       driveTimes.push(data.minutesTotal);
       const t = data.timestamp?.toDate()?.getTime();
-      if(t && t > latestDriveTimestamp) latestDriveTimestamp = t;
-    } else if(data.type === 'dine') {
+      if (t && t > latestDriveTimestamp) latestDriveTimestamp = t;
+    } else if (data.type === 'dine') {
       dineTimes.push(data.minutesTotal);
       const t = data.timestamp?.toDate()?.getTime();
-      if(t && t > latestDineTimestamp) latestDineTimestamp = t;
+      if (t && t > latestDineTimestamp) latestDineTimestamp = t;
     }
 
-    if(data.minutesTotal >= 120) anyOver2h = true;
+    if (data.minutesTotal >= 120) anyOver2h = true;
   });
 
   // Update medians
@@ -196,9 +195,9 @@ async function fetchAndUpdate() {
 
   // Update timestamps **per type**
   driveUpdatedEl.textContent = latestDriveTimestamp ? 
-    `Updated ${Math.floor((now - latestDriveTimestamp)/60000)} min ago` : '';
+    `Updated ${Math.floor((now - latestDriveTimestamp) / 60000)} min ago` : '';
   dineUpdatedEl.textContent = latestDineTimestamp ? 
-    `Updated ${Math.floor((now - latestDineTimestamp)/60000)} min ago` : '';
+    `Updated ${Math.floor((now - latestDineTimestamp) / 60000)} min ago` : '';
 
   warningEl.style.display = anyOver2h ? 'block' : 'none';
 }
