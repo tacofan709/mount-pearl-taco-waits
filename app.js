@@ -1,4 +1,6 @@
-// Firebase configuration
+// -------------------------
+// Firebase setup (compat)
+// -------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyB3ElBHMDJrCRPNW3MeR8YZWKR1HYyCgmo",
   authDomain: "mount-pearl-taco-waits.firebaseapp.com",
@@ -8,7 +10,7 @@ const firebaseConfig = {
   appId: "1:182160934094:web:a116715546f9364945fc9f"
 };
 
-// Initialize Firebase (compat style)
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
