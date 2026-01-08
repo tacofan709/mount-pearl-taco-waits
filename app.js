@@ -124,11 +124,12 @@ function fetchAndUpdateFromCache() {
 
   if (cached.drive) {
     driveTimeEl.textContent = cached.drive.time;
-    driveUpdatedEl.textContent = cached.drive.updated;
+    driveUpdatedEl.textContent = timeAgo(cached.drive.updatedAt);
   } else {
     driveTimeEl.textContent = 'No data';
     driveUpdatedEl.textContent = '';
   }
+setInterval(fetchAndUpdateFromCache, 60 * 1000);
 
   if (cached.dine) {
     dineTimeEl.textContent = cached.dine.time;
@@ -217,13 +218,26 @@ async function updateMediansFromFirestore() {
     });
 
     const cached = {
-      drive: driveTimes.length ? { time: formatTime(median(driveTimes)), updated: 'Updated just now' } : null,
-      dine: dineTimes.length ? { time: formatTime(median(dineTimes)), updated: 'Updated just now' } : null,
+      drive: driveTimes.length ? { time: formatTime(median(driveTimes)), updatedAT: Date.now() } : null,
+      dine: dineTimes.length ? { time: formatTime(median(dineTimes)), updatedAT: Date.now() } : null,
       warning: warning
     };
 
     localStorage.setItem('cachedMedians', JSON.stringify(cached));
     localStorage.setItem(lastHourlyFetchKey, now);
+
+    function timeAgo(ts) {
+  const diffMin = Math.floor((Date.now() - ts) / 60000);
+
+  if (diffMin < 1) return 'Updated just now';
+  if (diffMin === 1) return 'Updated 1 min ago';
+  if (diffMin < 60) return `Updated ${diffMin} min ago`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  return diffHr === 1
+    ? 'Updated 1 hour ago'
+    : `Updated ${diffHr} hours ago`;
+}
 
     // Update UI
     fetchAndUpdateFromCache();
