@@ -3,7 +3,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyD1WpNflBgPf-ExN1gCo1y4m7TDjkBoci4",
   authDomain: "mount-pearl-taco-waits-7767e.firebaseapp.com",
   projectId: "mount-pearl-taco-waits-7767e",
-  storageBucket: "mount-pearl-taco-waits-7767e.appspot.com", // ✅ fixed ".app" -> ".appspot.com"
+  storageBucket: "mount-pearl-taco-waits-7767e.appspot.com",
   messagingSenderId: "146084542686",
   appId: "1:146084542686:web:fd766ca0a465539d152a4f"
 };
@@ -76,9 +76,8 @@ submitBtn.addEventListener('click', async () => {
   const totalMinutes = hours * 60 + minutes;
 
   const docRef = db.collection('waitTimes').doc(auth.currentUser.uid);
-  const now = new Date();
-
-  // Save flat data
+  
+  // Save data with server timestamp
   const updateData = {
     location: selectedLocation,
     minutes: totalMinutes,
@@ -108,7 +107,14 @@ function resetForm() {
 // ------------------ Fetch Latest Wait Times ------------------
 async function fetchLatestWaitTimes() {
   try {
-    const snapshot = await db.collection('waitTimes').get();
+    const now = new Date();
+    const ninetyMinutesAgo = new Date(now.getTime() - 90 * 60 * 1000); // 90 minutes in ms
+
+    // Fetch entries in the last 90 minutes, newest first
+    const snapshot = await db.collection('waitTimes')
+      .where('timestamp', '>=', ninetyMinutesAgo)
+      .orderBy('timestamp', 'desc')
+      .get();
 
     let driveTimes = [];
     let dineTimes = [];
@@ -117,32 +123,43 @@ async function fetchLatestWaitTimes() {
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      if (data.location === 'drive') {
+      if (!data.timestamp) return;
+
+      if (data.location === 'drive' && driveTimes.length < 10) {
         driveTimes.push(data.minutes);
-        if (data.timestamp) driveTimestamps.push(data.timestamp);
-      }
-      if (data.location === 'dine') {
+        driveTimestamps.push(data.timestamp);
+      } else if (data.location === 'dine' && dineTimes.length < 10) {
         dineTimes.push(data.minutes);
-        if (data.timestamp) dineTimestamps.push(data.timestamp);
+        dineTimestamps.push(data.timestamp);
       }
     });
 
-    const calcAvg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-    const avgDrive = calcAvg(driveTimes);
-    const avgDine = calcAvg(dineTimes);
+    // Helper to calculate median
+    const calcMedian = arr => {
+      if (!arr.length) return 0;
+      const sorted = arr.slice().sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+        : sorted[mid];
+    };
 
-    driveTimeEl.textContent = avgDrive ? `${avgDrive} min` : 'No data';
-    dineTimeEl.textContent = avgDine ? `${avgDine} min` : 'No data';
+    const medianDrive = calcMedian(driveTimes);
+    const medianDine = calcMedian(dineTimes);
 
-    const latestDrive = driveTimestamps.sort((a, b) => b.seconds - a.seconds)[0];
-    const latestDine = dineTimestamps.sort((a, b) => b.seconds - a.seconds)[0];
+    driveTimeEl.textContent = medianDrive ? `${medianDrive} min` : 'No data';
+    dineTimeEl.textContent = medianDine ? `${medianDine} min` : 'No data';
 
     const formatDate = ts =>
       ts ? new Date(ts.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
+    const latestDrive = driveTimestamps[0];
+    const latestDine = dineTimestamps[0];
+
     driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
     dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
 
+    // Show warning if any times are over 120 minutes
     const allTimes = [...driveTimes, ...dineTimes];
     if (allTimes.length && Math.max(...allTimes) > 120) {
       warningEl.classList.remove('hidden');
@@ -157,6 +174,6 @@ async function fetchLatestWaitTimes() {
   }
 }
 
-// ------------------ Initial Fetch ------------------
+// ------------------ Initial Fetch & Auto-Refresh ------------------
 fetchLatestWaitTimes();
 setInterval(fetchLatestWaitTimes, 60000); // refresh every minute
