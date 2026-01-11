@@ -12,12 +12,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 
-// 🔐 App Check (reCAPTCHA)
-firebase.appCheck().activate(
-  "6LcoyEYsAAAAAPAzUbsNpCuS_KlCBdMqgYhKOyGb",
-  true
-);
-
 // =========================
 // Firebase services
 // =========================
