@@ -16,7 +16,7 @@ const auth = firebase.auth();
 // Anonymous login
 auth.signInAnonymously().catch(console.error);
 
-// DOM elements
+// ------------------ DOM Elements ------------------
 const openFormBtn = document.getElementById('openFormBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const submitBtn = document.getElementById('submitBtn');
@@ -37,25 +37,25 @@ const minutesInput = document.getElementById('minutes');
 
 const warningEl = document.getElementById('warning');
 
-// Open form
+// ------------------ Form & FAQ ------------------
 openFormBtn.addEventListener('click', () => {
   formSection.classList.remove('hidden');
-  faqContent.classList.add('hidden'); // hide FAQ if open
+  if (faqContent) faqContent.classList.add('hidden'); // hide FAQ if open
 });
 
-// Cancel form
 cancelBtn.addEventListener('click', () => {
   formSection.classList.add('hidden');
   resetForm();
 });
 
-// FAQ toggle
-faqBtn.addEventListener('click', () => {
-  faqContent.classList.toggle('hidden');
-  formSection.classList.add('hidden'); // hide form if open
-});
+if (faqBtn && faqContent) {
+  faqBtn.addEventListener('click', () => {
+    faqContent.classList.toggle('hidden');
+    formSection.classList.add('hidden');
+  });
+}
 
-// Location selection
+// ------------------ Location Selection ------------------
 locationButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     locationButtons.forEach(b => b.classList.remove('selected'));
@@ -64,50 +64,47 @@ locationButtons.forEach(btn => {
   });
 });
 
-// Submit
+// ------------------ Submission ------------------
 submitBtn.addEventListener('click', async () => {
-  const location = selectedLocation;
-  const hours = parseInt(hoursInput.value, 10);
-  const minutes = parseInt(minutesInput.value, 10);
-
-  if (!location) {
+  if (!selectedLocation) {
     alert("Please select Drive-thru or Dine-in.");
     return;
   }
 
-  const docId = auth.currentUser.uid;
-  const docRef = doc(db, "waitTimes", docId);
-  const docSnap = await getDoc(docRef);
+  const hours = parseInt(hoursInput.value, 10);
+  const minutes = parseInt(minutesInput.value, 10);
+  const totalMinutes = hours * 60 + minutes;
 
+  const docRef = db.collection('waitTimes').doc(auth.currentUser.uid);
+  const docSnap = await docRef.get();
   const now = new Date();
 
+  let lastSubmit = null;
+
   if (docSnap.exists()) {
-    const lastSubmit = docSnap.data().timestamp.toDate();
-    const hoursSince = (now - lastSubmit) / 36e5; // ms → hours
+    const data = docSnap.data();
+    if (selectedLocation === 'drive' && data.drive) lastSubmit = data.drive.timestamp?.toDate();
+    if (selectedLocation === 'dine' && data.dine) lastSubmit = data.dine.timestamp?.toDate();
+  }
+
+  if (lastSubmit) {
+    const hoursSince = (now - lastSubmit) / 36e5;
     if (hoursSince < 6) {
-      alert(`You already submitted a wait time. Try again in ${Math.ceil(6 - hoursSince)} hour(s).`);
+      alert(`You already submitted for ${selectedLocation === 'drive' ? 'Drive-thru' : 'Dine-in'}. Try again in ${Math.ceil(6 - hoursSince)} hour(s).`);
       return;
     }
   }
 
-  await setDoc(docRef, {
-    location,
-    hours,
-    minutes,
-    timestamp: serverTimestamp()
-  });
-
-  alert("Thank you! Your wait time was submitted.");
-  formSection.classList.add('hidden');
-});
+  // Save submission
+  const updateData = {};
+  updateData[selectedLocation] = {
+    minutes: totalMinutes,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
 
   try {
-    await db.collection('waitTimes').add({
-      location: selectedLocation,
-      minutes: totalMinutes,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    alert("Submitted! Thanks!");
+    await docRef.set(updateData, { merge: true });
+    alert("Thank you! Your wait time was submitted.");
     formSection.classList.add('hidden');
     resetForm();
     fetchLatestWaitTimes();
@@ -117,6 +114,7 @@ submitBtn.addEventListener('click', async () => {
   }
 });
 
+// ------------------ Reset Form ------------------
 function resetForm() {
   selectedLocation = null;
   locationButtons.forEach(b => b.classList.remove('selected'));
@@ -124,20 +122,19 @@ function resetForm() {
   minutesInput.value = 0;
 }
 
-// Fetch latest wait times
+// ------------------ Fetch Latest Wait Times ------------------
 async function fetchLatestWaitTimes() {
   try {
     const snapshot = await db.collection('waitTimes')
-      .orderBy('timestamp', 'desc')
-      .limit(50)
       .get();
 
     let driveTimes = [];
     let dineTimes = [];
+
     snapshot.forEach(doc => {
       const data = doc.data();
-      if (data.location === 'drive') driveTimes.push(data.minutes);
-      if (data.location === 'dine') dineTimes.push(data.minutes);
+      if (data.drive) driveTimes.push(data.drive.minutes);
+      if (data.dine) dineTimes.push(data.dine.minutes);
     });
 
     const calcAvg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
@@ -147,11 +144,21 @@ async function fetchLatestWaitTimes() {
     driveTimeEl.textContent = avgDrive ? `${avgDrive} min` : 'No data';
     dineTimeEl.textContent = avgDine ? `${avgDine} min` : 'No data';
 
-    const formatDate = date => date ? new Date(date.seconds*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
-    driveUpdatedEl.textContent = snapshot.docs.length ? `Updated: ${formatDate(snapshot.docs[0].data().timestamp)}` : '';
-    dineUpdatedEl.textContent = snapshot.docs.length ? `Updated: ${formatDate(snapshot.docs[0].data().timestamp)}` : '';
+    const latestDrive = snapshot.docs
+      .map(d => d.data().drive?.timestamp)
+      .filter(Boolean)
+      .sort((a,b)=>b.seconds - a.seconds)[0];
 
-    // Warning if any over 120
+    const latestDine = snapshot.docs
+      .map(d => d.data().dine?.timestamp)
+      .filter(Boolean)
+      .sort((a,b)=>b.seconds - a.seconds)[0];
+
+    const formatDate = ts => ts ? new Date(ts.seconds*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+
+    driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
+    dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
+
     if (Math.max(...driveTimes, ...dineTimes) > 120) {
       warningEl.classList.remove('hidden');
     } else {
@@ -165,6 +172,6 @@ async function fetchLatestWaitTimes() {
   }
 }
 
-// Initial fetch
+// ------------------ Initial Fetch ------------------
 fetchLatestWaitTimes();
 setInterval(fetchLatestWaitTimes, 60000); // refresh every minute
