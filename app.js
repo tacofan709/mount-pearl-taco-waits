@@ -2,28 +2,24 @@
 // Firebase Initialization
 // =========================
 const firebaseConfig = {
-  apiKey: "AIzaSyCrdBiON0lPk3bgA-fH0AU0hSjzWiXmncI",
-  authDomain: "mount-pear-taco-waits.firebaseapp.com",
-  projectId: "mount-pear-taco-waits",
-  storageBucket: "mount-pear-taco-waits.firebasestorage.app",
-  messagingSenderId: "298827823692",
-  appId: "1:298827823692:web:85b95c19d1d3ec8b3092e9"
+  apiKey: "AIzaSyB3ElBHMDJrCRPNW3MeR8YZWKR1HYyCgmo",
+  authDomain: "mount-pearl-taco-waits.firebaseapp.com",
+  projectId: "mount-pearl-taco-waits",
+  storageBucket: "mount-pearl-taco-waits.appspot.com",
+  messagingSenderId: "182160934094",
+  appId: "1:182160934094:web:a116715546f9364945fc9f"
 };
 
 firebase.initializeApp(firebaseConfig);
 
-// 🔐 App Check (replace with your site key)
+// 🔐 App Check (reCAPTCHA)
 firebase.appCheck().activate(
   "6LcoyEYsAAAAAPAzUbsNpCuS_KlCBdMqgYhKOyGb",
-  true // auto-refresh
+  true
 );
 
-window.addEventListener("load", () => {
-  firebase.appCheck().activate('YOUR_RECAPTCHA_SITE_KEY', true);
-});
-
 // =========================
-// Firebase Services
+// Firebase services
 // =========================
 const db = firebase.firestore();
 const auth = firebase.auth();
@@ -53,17 +49,17 @@ const locationButtons = document.querySelectorAll(".location-choice button");
 const hoursInput = document.getElementById("hours");
 const minutesInput = document.getElementById("minutes");
 
-const openFaqBtn = document.getElementById("openFaqBtn");
-const faqModal = document.getElementById("faqModal");
-const closeFaqBtn = document.getElementById("closeFaqBtn");
-
 let selectedLocation = null;
 
 // =========================
 // UI Handlers
 // =========================
 openFormBtn.onclick = () => formSection.classList.remove("hidden");
-cancelBtn.onclick = () => { formSection.classList.add("hidden"); resetForm(); };
+
+cancelBtn.onclick = () => {
+  formSection.classList.add("hidden");
+  resetForm();
+};
 
 locationButtons.forEach(btn => {
   btn.onclick = () => {
@@ -73,12 +69,6 @@ locationButtons.forEach(btn => {
   };
 });
 
-openFaqBtn.onclick = () => faqModal.classList.remove("hidden");
-closeFaqBtn.onclick = () => faqModal.classList.add("hidden");
-
-// =========================
-// Reset Form
-// =========================
 function resetForm() {
   selectedLocation = null;
   locationButtons.forEach(b => b.classList.remove("selected"));
@@ -91,21 +81,19 @@ function resetForm() {
 // =========================
 function isWithinBusinessHours() {
   const now = new Date();
+  const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const totalMinutes = hour * 60 + minute;
 
-  // Newfoundland time offset: UTC-3:30
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const nstOffset = -3.5 * 60; // in minutes
-  const nst = new Date(utc + nstOffset * 60000);
+  const openMinutes = 10 * 60 + 30; // 10:30 AM
+  const closeMinutes = 25 * 60 + 15; // 1:15 AM next day = 25:15
 
-  const hours = nst.getHours();
-  const minutes = nst.getMinutes();
+  // For totalMinutes > 24h, adjust by adding 24h for times after midnight
+  let adjustedMinutes = totalMinutes;
+  if (totalMinutes < openMinutes) adjustedMinutes += 24 * 60;
 
-  // Business hours: 10:30 → 1:15 (next day)
-  const start = 10 * 60 + 30;
-  const end = 25 * 60 + 15; // 1:15 AM next day as 25:15
-  const current = hours * 60 + minutes + (hours < 2 ? 24 * 60 : 0);
-
-  return current >= start && current <= end;
+  return adjustedMinutes >= openMinutes && adjustedMinutes <= closeMinutes;
 }
 
 // =========================
@@ -117,22 +105,28 @@ submitBtn.onclick = async () => {
     return;
   }
 
-  if (!isWithinBusinessHours()) {
-    alert("Submissions are only accepted during business hours (10:30 AM → 1:15 AM NL).");
-    return;
-  }
-
   if (!selectedLocation) {
-    alert("Select Drive-thru or Dine-in.");
+    alert("Select drive-thru or dine-in.");
     return;
   }
 
   const hours = Number(hoursInput.value) || 0;
-  const mins = Number(minutesInput.value) || 0;
-  const totalMinutes = hours * 60 + mins;
+  const minutes = Number(minutesInput.value) || 0;
 
-  if (totalMinutes <= 0 || totalMinutes > 299) { // 4h59m = 299 min
-    alert("Wait time must be between 1 minute and 4 hours 59 minutes.");
+  if (hours < 0 || hours > 4 || minutes < 0 || minutes > 59) {
+    alert("Hours must be 0–4 and minutes 0–59.");
+    return;
+  }
+
+  const totalMinutes = hours * 60 + minutes;
+
+  if (totalMinutes <= 0) {
+    alert("Wait time must be at least 1 minute.");
+    return;
+  }
+
+  if (!isWithinBusinessHours()) {
+    alert("Submissions can only be made during business hours: 10:30 AM – 1:15 AM.");
     return;
   }
 
@@ -140,27 +134,24 @@ submitBtn.onclick = async () => {
   const lockRef = db.collection("userLocks").doc(uid);
 
   try {
-    // 🔒 Check last submission
     const lockDoc = await lockRef.get();
-    const now = new Date();
-
-    if (lockDoc.exists && lockDoc.data().lastSubmission) {
-      const last = lockDoc.data().lastSubmission.toDate();
-      const diffMs = now - last;
+    if (lockDoc.exists) {
+      const lastSubmission = lockDoc.data().lastSubmission.toDate();
+      const diffMs = new Date() - lastSubmission;
       const diffHours = diffMs / 1000 / 60 / 60;
 
       if (diffHours < 6) {
-        alert(`You can only submit once every 6 hours. Try again in ${Math.ceil(6 - diffHours)} hour(s).`);
+        alert(`You can submit only once every 6 hours. Try again in ${Math.ceil(6 - diffHours)} hour(s).`);
         return;
       }
     }
 
-    // 🔒 Update lock
+    // Update user lock
     await lockRef.set({
       lastSubmission: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    });
 
-    // 📝 Submit wait time
+    // Submit wait time
     await db.collection("waitTimes").add({
       uid,
       location: selectedLocation,
@@ -180,7 +171,7 @@ submitBtn.onclick = async () => {
 };
 
 // =========================
-// Fetch & Display Wait Times
+// Fetch Latest Wait Times
 // =========================
 async function fetchLatestWaitTimes() {
   const locations = ["drive", "dine"];
@@ -203,10 +194,10 @@ async function fetchLatestWaitTimes() {
       let latest = null;
 
       snap.forEach(doc => {
-        const d = doc.data();
-        total += d.minutes;
-        if (d.timestamp) {
-          const t = d.timestamp.toDate();
+        const data = doc.data();
+        total += data.minutes;
+        if (data.timestamp) {
+          const t = data.timestamp.toDate();
           if (!latest || t > latest) latest = t;
         }
       });
@@ -247,5 +238,8 @@ function setDisplay(loc, time, updated) {
 // =========================
 // Initial Load + Refresh
 // =========================
-fetchLatestWaitTimes();
-setInterval(fetchLatestWaitTimes, 60000); // refresh every 60 sec
+auth.onAuthStateChanged(user => {
+  if (user) fetchLatestWaitTimes();
+});
+
+setInterval(fetchLatestWaitTimes, 60000); // refresh every minute
