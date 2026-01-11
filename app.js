@@ -64,7 +64,7 @@ locationButtons.forEach(btn => {
   });
 });
 
-// ------------------ Submission ------------------
+// ------------------ Submission with 6-Hour Cooldown ------------------
 submitBtn.addEventListener('click', async () => {
   if (!selectedLocation) {
     alert("Please select Drive-thru or Dine-in.");
@@ -75,21 +75,37 @@ submitBtn.addEventListener('click', async () => {
   const minutes = parseInt(minutesInput.value, 10);
   const totalMinutes = hours * 60 + minutes;
 
-  const docRef = db.collection('waitTimes').doc(auth.currentUser.uid);
-  
-  // Save data with server timestamp
-  const updateData = {
-    location: selectedLocation,
-    minutes: totalMinutes,
-    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  };
+  // Unique doc per user + location
+  const docId = `${auth.currentUser.uid}_${selectedLocation}`;
+  const docRef = db.collection('waitTimes').doc(docId);
 
   try {
-    await docRef.set(updateData);
+    const docSnap = await docRef.get();
+    const now = new Date();
+
+    if (docSnap.exists && docSnap.data().timestamp) {
+      const lastTimestamp = docSnap.data().timestamp.toDate();
+      const diffMs = now - lastTimestamp;
+      const hoursSinceLast = diffMs / (1000 * 60 * 60);
+
+      if (hoursSinceLast < 6) {
+        alert(`You can only submit a ${selectedLocation} entry once every 6 hours. Please try again later.`);
+        return;
+      }
+    }
+
+    // Save new entry
+    await docRef.set({
+      location: selectedLocation,
+      minutes: totalMinutes,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
     alert("Thank you! Your wait time was submitted.");
     formSection.classList.add('hidden');
     resetForm();
     fetchLatestWaitTimes();
+
   } catch (err) {
     console.error("❌ Submission failed:", err);
     alert("Submission failed, try again.");
@@ -104,13 +120,13 @@ function resetForm() {
   minutesInput.value = 0;
 }
 
-// ------------------ Fetch Latest Wait Times ------------------
+// ------------------ Fetch Latest Wait Times (Median of Last 10, 90 min) ------------------
 async function fetchLatestWaitTimes() {
   try {
     const now = new Date();
-    const ninetyMinutesAgo = new Date(now.getTime() - 90 * 60 * 1000); // 90 minutes in ms
+    const ninetyMinutesAgo = new Date(now.getTime() - 90 * 60 * 1000);
 
-    // Fetch entries in the last 90 minutes, newest first
+    // Get all entries in the last 90 minutes, newest first
     const snapshot = await db.collection('waitTimes')
       .where('timestamp', '>=', ninetyMinutesAgo)
       .orderBy('timestamp', 'desc')
@@ -134,7 +150,7 @@ async function fetchLatestWaitTimes() {
       }
     });
 
-    // Helper to calculate median
+    // Median calculation
     const calcMedian = arr => {
       if (!arr.length) return 0;
       const sorted = arr.slice().sort((a, b) => a - b);
@@ -159,7 +175,7 @@ async function fetchLatestWaitTimes() {
     driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
     dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
 
-    // Show warning if any times are over 120 minutes
+    // Show warning if any times > 120 min
     const allTimes = [...driveTimes, ...dineTimes];
     if (allTimes.length && Math.max(...allTimes) > 120) {
       warningEl.classList.remove('hidden');
@@ -176,4 +192,4 @@ async function fetchLatestWaitTimes() {
 
 // ------------------ Initial Fetch & Auto-Refresh ------------------
 fetchLatestWaitTimes();
-setInterval(fetchLatestWaitTimes, 60000); // refresh every minute
+setInterval(fetchLatestWaitTimes, 60000);
