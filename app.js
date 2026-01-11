@@ -3,7 +3,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyD1WpNflBgPf-ExN1gCo1y4m7TDjkBoci4",
   authDomain: "mount-pearl-taco-waits-7767e.firebaseapp.com",
   projectId: "mount-pearl-taco-waits-7767e",
-  storageBucket: "mount-pearl-taco-waits-7767e.firebasestorage.app",
+  storageBucket: "mount-pearl-taco-waits-7767e.appspot.com", // ✅ fixed ".app" -> ".appspot.com"
   messagingSenderId: "146084542686",
   appId: "1:146084542686:web:fd766ca0a465539d152a4f"
 };
@@ -40,7 +40,7 @@ const warningEl = document.getElementById('warning');
 // ------------------ Form & FAQ ------------------
 openFormBtn.addEventListener('click', () => {
   formSection.classList.remove('hidden');
-  if (faqContent) faqContent.classList.add('hidden'); // hide FAQ if open
+  if (faqContent) faqContent.classList.add('hidden');
 });
 
 cancelBtn.addEventListener('click', () => {
@@ -76,40 +76,23 @@ submitBtn.addEventListener('click', async () => {
   const totalMinutes = hours * 60 + minutes;
 
   const docRef = db.collection('waitTimes').doc(auth.currentUser.uid);
-  const docSnap = await docRef.get();
   const now = new Date();
 
-  let lastSubmit = null;
-
-  if (docSnap.exists()) {
-    const data = docSnap.data();
-    if (selectedLocation === 'drive' && data.drive) lastSubmit = data.drive.timestamp?.toDate();
-    if (selectedLocation === 'dine' && data.dine) lastSubmit = data.dine.timestamp?.toDate();
-  }
-
-  if (lastSubmit) {
-    const hoursSince = (now - lastSubmit) / 36e5;
-    if (hoursSince < 6) {
-      alert(`You already submitted for ${selectedLocation === 'drive' ? 'Drive-thru' : 'Dine-in'}. Try again in ${Math.ceil(6 - hoursSince)} hour(s).`);
-      return;
-    }
-  }
-
-  // Save submission
-  const updateData = {};
-  updateData[selectedLocation] = {
+  // Save flat data
+  const updateData = {
+    location: selectedLocation,
     minutes: totalMinutes,
     timestamp: firebase.firestore.FieldValue.serverTimestamp()
   };
 
   try {
-    await docRef.set(updateData, { merge: true });
+    await docRef.set(updateData);
     alert("Thank you! Your wait time was submitted.");
     formSection.classList.add('hidden');
     resetForm();
     fetchLatestWaitTimes();
   } catch (err) {
-    console.error(err);
+    console.error("❌ Submission failed:", err);
     alert("Submission failed, try again.");
   }
 });
@@ -125,48 +108,50 @@ function resetForm() {
 // ------------------ Fetch Latest Wait Times ------------------
 async function fetchLatestWaitTimes() {
   try {
-    const snapshot = await db.collection('waitTimes')
-      .get();
+    const snapshot = await db.collection('waitTimes').get();
 
     let driveTimes = [];
     let dineTimes = [];
+    let driveTimestamps = [];
+    let dineTimestamps = [];
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      if (data.drive) driveTimes.push(data.drive.minutes);
-      if (data.dine) dineTimes.push(data.dine.minutes);
+      if (data.location === 'drive') {
+        driveTimes.push(data.minutes);
+        if (data.timestamp) driveTimestamps.push(data.timestamp);
+      }
+      if (data.location === 'dine') {
+        dineTimes.push(data.minutes);
+        if (data.timestamp) dineTimestamps.push(data.timestamp);
+      }
     });
 
-    const calcAvg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+    const calcAvg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
     const avgDrive = calcAvg(driveTimes);
     const avgDine = calcAvg(dineTimes);
 
     driveTimeEl.textContent = avgDrive ? `${avgDrive} min` : 'No data';
     dineTimeEl.textContent = avgDine ? `${avgDine} min` : 'No data';
 
-    const latestDrive = snapshot.docs
-      .map(d => d.data().drive?.timestamp)
-      .filter(Boolean)
-      .sort((a,b)=>b.seconds - a.seconds)[0];
+    const latestDrive = driveTimestamps.sort((a, b) => b.seconds - a.seconds)[0];
+    const latestDine = dineTimestamps.sort((a, b) => b.seconds - a.seconds)[0];
 
-    const latestDine = snapshot.docs
-      .map(d => d.data().dine?.timestamp)
-      .filter(Boolean)
-      .sort((a,b)=>b.seconds - a.seconds)[0];
-
-    const formatDate = ts => ts ? new Date(ts.seconds*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+    const formatDate = ts =>
+      ts ? new Date(ts.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
     driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
     dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
 
-    if (Math.max(...driveTimes, ...dineTimes) > 120) {
+    const allTimes = [...driveTimes, ...dineTimes];
+    if (allTimes.length && Math.max(...allTimes) > 120) {
       warningEl.classList.remove('hidden');
     } else {
       warningEl.classList.add('hidden');
     }
 
   } catch (err) {
-    console.error(err);
+    console.error("❌ Fetch failed:", err);
     driveTimeEl.textContent = 'Error';
     dineTimeEl.textContent = 'Error';
   }
