@@ -1,85 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mount Pearl Taco Bell Wait Times</title>
-<link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mount Pearl Taco Bell Wait Times</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<main class="app">
-  <header class="header">
-    <h1>Taco Bell Wait Times</h1>
-    <p class="subtitle">Mount Pearl, NL</p>
-    <p class="vibe">It’s wild out there 🌮</p>
-  </header>
+  <main class="app">
+    <header class="header">
+      <h1>Taco Bell Wait Times</h1>
+      <p class="subtitle">Mount Pearl, NL</p>
+      <p class="vibe">It’s wild out there 🌮</p>
+    </header>
 
-  <section class="warning hidden" id="warning">
-    ⚠️ Waits over <strong>2 hours</strong> have been reported recently.
-  </section>
+    <section class="warning hidden" id="warning">
+      ⚠️ Waits over <strong>2 hours</strong> have been reported recently.
+    </section>
 
-  <section class="wait-times">
-    <div class="wait-card">
-      <h2>🚗 Drive-thru</h2>
-      <p class="time" id="driveTime">Loading…</p>
-      <p class="updated" id="driveUpdated"></p>
-    </div>
-    <div class="wait-card">
-      <h2>🍽️ Dine-in / Walk-in</h2>
-      <p class="time" id="dineTime">Loading…</p>
-      <p class="updated" id="dineUpdated"></p>
-    </div>
-  </section>
+    <section class="wait-times">
+      <div class="wait-card">
+        <h2>🚗 Drive-thru</h2>
+        <p class="time" id="driveTime">Loading…</p>
+        <p class="updated" id="driveUpdated"></p>
+      </div>
+      <div class="wait-card">
+        <h2>🍽️ Dine-in / Walk-in</h2>
+        <p class="time" id="dineTime">Loading…</p>
+        <p class="updated" id="dineUpdated"></p>
+      </div>
+    </section>
 
-  <!-- Submit Button -->
-  <section class="submit">
-    <button id="openFormBtn">Submit your wait time</button>
-  </section>
+    <section class="submit">
+      <button id="openFormBtn">Submit your wait time</button>
+      <button id="faqBtn">FAQ</button>
+    </section>
 
-  <!-- Submission Form (hidden) -->
-  <section class="form hidden" id="formSection">
-    <h3>How long did you wait?</h3>
+    <!-- FAQ Content -->
+    <section id="faqContent" class="hidden">
+      <p>How does this work?</p>
+      <p>Community members submit the wait times they experience. All data is unofficial and for general guidance only.</p>
+      <p>Drive-thru times and Dine-in times are reported separately. Submissions are anonymous and for everyone’s benefit.</p>
+    </section>
 
-    <div class="location-choice">
-      <button data-type="drive">🚗 Drive-thru</button>
-      <button data-type="dine">🍽️ Dine-in / Walk-in</button>
-    </div>
+    <!-- Submission Form (hidden by default) -->
+    <section class="form hidden" id="formSection">
+      <h3>How long did you wait?</h3>
 
-    <div class="time-inputs">
-      <label>Hours
-        <input type="number" id="hours" min="0" max="4" value="0">
-      </label>
-      <label>Minutes
-        <input type="number" id="minutes" min="0" max="59" value="0">
-      </label>
-    </div>
+      <div class="location-choice">
+        <button data-type="drive">🚗 Drive-thru</button>
+        <button data-type="dine">🍽️ Dine-in / Walk-in</button>
+      </div>
 
-    <button id="submitBtn" class="primary">Submit</button>
-    <button id="cancelBtn" class="secondary">Cancel</button>
-  </section>
+      <div class="time-inputs">
+        <label>
+          Hours
+          <input type="number" id="hours" min="0" max="4" value="0">
+        </label>
+        <label>
+          Minutes
+          <input type="number" id="minutes" min="0" max="59" value="0">
+        </label>
+      </div>
 
-  <!-- FAQ Section -->
-  <section class="submit">
-    <button id="faqBtn">FAQ</button>
-    <div id="faqContent" class="hidden">
-      <p>Submit your wait times so others know how busy Taco Bell is. Data is community-reported and unofficial.</p>
-    </div>
-  </section>
+      <button id="submitBtn" class="primary">Submit</button>
+      <button id="cancelBtn" class="secondary">Cancel</button>
+    </section>
 
-  <footer class="footer">
-    <p>
-      Unofficial, community-reported wait times.<br>
-      Data may not be correct.<br>
-      Use for general guidance only. Not affiliated with Taco Bell.
-    </p>
-  </footer>
-</main>
+    <footer class="footer">
+      <p>
+        Unofficial, community-reported wait times. <br>
+        Data may not be correct. <br>
+        Use for general guidance only. Not affiliated with Taco Bell.
+      </p>
+    </footer>
+  </main>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
