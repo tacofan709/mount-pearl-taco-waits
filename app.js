@@ -37,6 +37,18 @@ const minutesInput = document.getElementById('minutes');
 
 const warningEl = document.getElementById('warning');
 
+// ------------------ Helper Functions ------------------
+function formatMinutesToHours(minutes) {
+  if (!minutes || minutes === 0) return 'No data';
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m`;
+  } else {
+    return `${mins}m`;
+  }
+}
+
 // ------------------ Form & FAQ ------------------
 openFormBtn.addEventListener('click', () => {
   formSection.classList.remove('hidden');
@@ -164,8 +176,9 @@ async function fetchLatestWaitTimes() {
     const medianDrive = calcMedian(driveTimes);
     const medianDine = calcMedian(dineTimes);
 
-    driveTimeEl.textContent = medianDrive ? `${medianDrive} min` : 'No data';
-    dineTimeEl.textContent = medianDine ? `${medianDine} min` : 'No data';
+    // ------------------ Updated DOM with Hours:Minutes ------------------
+    driveTimeEl.textContent = formatMinutesToHours(medianDrive);
+    dineTimeEl.textContent = formatMinutesToHours(medianDine);
 
     const formatDate = ts =>
       ts ? new Date(ts.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
