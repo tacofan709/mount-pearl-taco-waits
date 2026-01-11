@@ -66,10 +66,40 @@ locationButtons.forEach(btn => {
 
 // Submit
 submitBtn.addEventListener('click', async () => {
-  if (!selectedLocation) return alert("Select a location first!");
-  const hours = parseInt(hoursInput.value) || 0;
-  const minutes = parseInt(minutesInput.value) || 0;
-  const totalMinutes = hours * 60 + minutes;
+  const location = selectedLocation;
+  const hours = parseInt(hoursInput.value, 10);
+  const minutes = parseInt(minutesInput.value, 10);
+
+  if (!location) {
+    alert("Please select Drive-thru or Dine-in.");
+    return;
+  }
+
+  const docId = auth.currentUser.uid;
+  const docRef = doc(db, "waitTimes", docId);
+  const docSnap = await getDoc(docRef);
+
+  const now = new Date();
+
+  if (docSnap.exists()) {
+    const lastSubmit = docSnap.data().timestamp.toDate();
+    const hoursSince = (now - lastSubmit) / 36e5; // ms → hours
+    if (hoursSince < 6) {
+      alert(`You already submitted a wait time. Try again in ${Math.ceil(6 - hoursSince)} hour(s).`);
+      return;
+    }
+  }
+
+  await setDoc(docRef, {
+    location,
+    hours,
+    minutes,
+    timestamp: serverTimestamp()
+  });
+
+  alert("Thank you! Your wait time was submitted.");
+  formSection.classList.add('hidden');
+});
 
   try {
     await db.collection('waitTimes').add({
