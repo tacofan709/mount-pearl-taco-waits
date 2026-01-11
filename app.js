@@ -34,19 +34,21 @@ let selectedLocation = null;
 
 const hoursInput = document.getElementById('hours');
 const minutesInput = document.getElementById('minutes');
-
 const warningEl = document.getElementById('warning');
 
 // ------------------ Helper Functions ------------------
 function formatMinutesToHours(minutes) {
-  if (!minutes || minutes === 0) return 'No data';
+  if (!minutes || minutes === 0) return 'No recent reports'; // ✅ updated text
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  if (hrs > 0) {
-    return `${hrs}h ${mins}m`;
-  } else {
-    return `${mins}m`;
-  }
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+}
+
+function resetForm() {
+  selectedLocation = null;
+  locationButtons.forEach(b => b.classList.remove('selected'));
+  hoursInput.value = 0;
+  minutesInput.value = 0;
 }
 
 // ------------------ Form & FAQ ------------------
@@ -83,9 +85,35 @@ submitBtn.addEventListener('click', async () => {
     return;
   }
 
+  // --- Off-hour restriction (Newfoundland Time) ---
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const nlOffset = -3.5; // Newfoundland = UTC-3:30
+  const nlTime = new Date(utc + nlOffset * 3600000);
+  const hoursNL = nlTime.getHours() + nlTime.getMinutes() / 60;
+
+  // 10.5 = 10:30 AM, 1.25 = 1:15 AM next day
+  const isOpen = (hoursNL >= 10.5) || (hoursNL <= 1.25);
+
+  if (!isOpen) {
+    alert("Submissions are only accepted between 10:30 AM and 1:15 AM Newfoundland Time.");
+    return;
+  }
+  // --- End off-hour restriction ---
+
   const hours = parseInt(hoursInput.value, 10);
   const minutes = parseInt(minutesInput.value, 10);
   const totalMinutes = hours * 60 + minutes;
+
+  // Optional: prevent extreme entries
+  if (totalMinutes <= 0) {
+    alert("Please enter a valid wait time greater than 0 minutes.");
+    return;
+  }
+  if (totalMinutes > 299) {
+    alert("Please enter a wait time under 5 hours.");
+    return;
+  }
 
   // ONE doc per user for all submissions
   const docId = auth.currentUser.uid;
@@ -125,30 +153,42 @@ submitBtn.addEventListener('click', async () => {
   }
 });
 
-// ------------------ Reset Form ------------------
-function resetForm() {
-  selectedLocation = null;
-  locationButtons.forEach(b => b.classList.remove('selected'));
-  hoursInput.value = 0;
-  minutesInput.value = 0;
+// ------------------ Weighted Median Calculation ------------------
+function calcWeightedMedian(times, timestamps) {
+  if (!times.length) return 0;
+
+  const now = new Date();
+  const weights = timestamps.map(ts => {
+    const ageMin = (now - ts.toDate()) / 60000;
+    // New = weight 1.0; 90 min old = weight 0.2 minimum
+    return Math.max(0.2, 1 - ageMin / 90);
+  });
+
+  const combined = times.map((t, i) => ({ t, w: weights[i] }))
+    .sort((a, b) => a.t - b.t);
+
+  const totalWeight = combined.reduce((sum, x) => sum + x.w, 0);
+  let cumulative = 0;
+  for (const item of combined) {
+    cumulative += item.w;
+    if (cumulative >= totalWeight / 2) return Math.round(item.t);
+  }
+  return Math.round(combined[combined.length - 1].t);
 }
 
-// ------------------ Fetch Latest Wait Times (Median of Last 10, 90 min) ------------------
+// ------------------ Fetch Latest Wait Times (Weighted Median of Last 10, 90 min) ------------------
 async function fetchLatestWaitTimes() {
   try {
     const now = new Date();
     const ninetyMinutesAgo = new Date(now.getTime() - 90 * 60 * 1000);
 
-    // Get all entries in the last 90 minutes, newest first
     const snapshot = await db.collection('waitTimes')
       .where('timestamp', '>=', ninetyMinutesAgo)
       .orderBy('timestamp', 'desc')
       .get();
 
-    let driveTimes = [];
-    let dineTimes = [];
-    let driveTimestamps = [];
-    let dineTimestamps = [];
+    let driveTimes = [], dineTimes = [];
+    let driveTimestamps = [], dineTimestamps = [];
 
     snapshot.forEach(doc => {
       const data = doc.data();
@@ -163,20 +203,10 @@ async function fetchLatestWaitTimes() {
       }
     });
 
-    // Median calculation
-    const calcMedian = arr => {
-      if (!arr.length) return 0;
-      const sorted = arr.slice().sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      return sorted.length % 2 === 0
-        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
-        : sorted[mid];
-    };
+    // ✅ Weighted medians
+    const medianDrive = calcWeightedMedian(driveTimes, driveTimestamps);
+    const medianDine = calcWeightedMedian(dineTimes, dineTimestamps);
 
-    const medianDrive = calcMedian(driveTimes);
-    const medianDine = calcMedian(dineTimes);
-
-    // ------------------ Updated DOM with Hours:Minutes ------------------
     driveTimeEl.textContent = formatMinutesToHours(medianDrive);
     dineTimeEl.textContent = formatMinutesToHours(medianDine);
 
