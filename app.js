@@ -18,6 +18,10 @@ firebase.appCheck().activate(
   true // auto-refresh
 );
 
+window.addEventListener("load", () => {
+  firebase.appCheck().activate('YOUR_RECAPTCHA_SITE_KEY', true);
+});
+
 // =========================
 // Firebase Services
 // =========================
