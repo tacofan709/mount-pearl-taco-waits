@@ -1,93 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mount Pearl Taco Bell Wait Times</title>
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mount Pearl Taco Bell Wait Times</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app">
-    <!-- Header -->
-    <header class="header">
-      <h1>Taco Bell Wait Times</h1>
-      <p class="subtitle">Mount Pearl, NL</p>
-      <p class="vibe">It’s wild out there 🌮</p>
-    </header>
+<main class="app">
+  <header class="header">
+    <h1>Taco Bell Wait Times</h1>
+    <p class="subtitle">Mount Pearl, NL</p>
+    <p class="vibe">It’s wild out there 🌮</p>
+  </header>
 
-    <!-- Warning -->
-    <section class="warning hidden" id="warning">
-      ⚠️ Waits over <strong>2 hours</strong> have been reported recently.
-    </section>
+  <section class="warning hidden" id="warning">
+    ⚠️ Waits over <strong>2 hours</strong> have been reported recently.
+  </section>
 
-    <!-- Wait Times -->
-    <section class="wait-times">
-      <div class="wait-card">
-        <h2>🚗 Drive-thru</h2>
-        <p class="time" id="driveTime">Loading…</p>
-        <p class="updated" id="driveUpdated"></p>
-      </div>
-      <div class="wait-card">
-        <h2>🍽️ Dine-in / Walk-in</h2>
-        <p class="time" id="dineTime">Loading…</p>
-        <p class="updated" id="dineUpdated"></p>
-      </div>
-    </section>
+  <section class="wait-times">
+    <div class="wait-card">
+      <h2>🚗 Drive-thru</h2>
+      <p class="time" id="driveTime">Loading…</p>
+      <p class="updated" id="driveUpdated"></p>
+    </div>
+    <div class="wait-card">
+      <h2>🍽️ Dine-in / Walk-in</h2>
+      <p class="time" id="dineTime">Loading…</p>
+      <p class="updated" id="dineUpdated"></p>
+    </div>
+  </section>
 
-    <!-- Submit Button -->
-    <section class="submit">
-      <button id="openFormBtn">Submit your wait time</button>
-    </section>
+  <!-- Submit Button -->
+  <section class="submit">
+    <button id="openFormBtn">Submit your wait time</button>
+  </section>
 
-    <!-- Submission Form (hidden by default) -->
-    <section class="form hidden" id="formSection">
-      <h3>How long did you wait?</h3>
-      <div class="location-choice">
-        <button data-type="drive">🚗 Drive-thru</button>
-        <button data-type="dine">🍽️ Dine-in / Walk-in</button>
-      </div>
-      <div class="time-inputs">
-        <label>
-          Hours
-          <input type="number" id="hours" min="0" max="4" value="0">
-        </label>
-        <label>
-          Minutes
-          <input type="number" id="minutes" min="0" max="59" value="0">
-        </label>
-      </div>
-      <button id="submitBtn" class="primary">Submit</button>
-      <button id="cancelBtn" class="secondary">Cancel</button>
-      <p class="faq-note" style="margin-top:0.75rem; font-size:0.85rem; text-align:center;">
-        ⚠️ Please only submit real wait times. The app is free, does not collect personal data, and is community-run. Submissions are limited to once every 6 hours.
-      </p>
-    </section>
+  <!-- Submission Form (hidden) -->
+  <section class="form hidden" id="formSection">
+    <h3>How long did you wait?</h3>
 
-    <!-- FAQ Section -->
-    <section class="form" style="background: rgba(0,0,0,0.3); border-radius:18px; padding:1rem; margin-top:1rem;">
-      <h3>FAQ</h3>
-      <ul style="list-style:none; padding-left:0; font-size:0.9rem; line-height:1.4;">
-        <li>• How do I submit a wait time? Click "Submit your wait time", select location, and enter hours/minutes.</li>
-        <li>• Are there rules or limits? Only one submission per location every 6 hours. Max 4h59m.</li>
-        <li>• Is this app free? Yes! No personal data is collected, and no ads or money are involved.</li>
-        <li>• Please don’t submit just to test the site. Only real wait times help the community.</li>
-      </ul>
-    </section>
+    <div class="location-choice">
+      <button data-type="drive">🚗 Drive-thru</button>
+      <button data-type="dine">🍽️ Dine-in / Walk-in</button>
+    </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <p>
-        Unofficial, community-reported wait times. <br>
-        Data may not be correct. <br>
-        Use for general guidance only. Not affiliated with Taco Bell.
-      </p>
-    </footer>
-  </main>
+    <div class="time-inputs">
+      <label>Hours
+        <input type="number" id="hours" min="0" max="4" value="0">
+      </label>
+      <label>Minutes
+        <input type="number" id="minutes" min="0" max="59" value="0">
+      </label>
+    </div>
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="app.js"></script>
+    <button id="submitBtn" class="primary">Submit</button>
+    <button id="cancelBtn" class="secondary">Cancel</button>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="submit">
+    <button id="faqBtn">FAQ</button>
+    <div id="faqContent" class="hidden">
+      <p>Submit your wait times so others know how busy Taco Bell is. Data is community-reported and unofficial.</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>
+      Unofficial, community-reported wait times.<br>
+      Data may not be correct.<br>
+      Use for general guidance only. Not affiliated with Taco Bell.
+    </p>
+  </footer>
+</main>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<script src="app.js"></script>
 </body>
 </html>
