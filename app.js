@@ -12,28 +12,19 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 
-// 🔐 App Check (replace with your real key)
+// App Check (invisible reCAPTCHA)
 firebase.appCheck().activate(
-  "6LcXXXXXXXXXXXXXXX",
+  "6LcXXXXXXXXXXXXXXX", // replace with your App Check site key
   true
 );
 
-// =========================
-// Firebase services
-// =========================
+// Firestore + Auth
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// =========================
-// Anonymous Auth
-// =========================
-auth.signInAnonymously().catch(err => {
-  console.error("Auth error:", err);
-});
-
-// =========================
+// -------------------------
 // DOM Elements
-// =========================
+// -------------------------
 const driveTimeEl = document.getElementById("driveTime");
 const dineTimeEl = document.getElementById("dineTime");
 const driveUpdatedEl = document.getElementById("driveUpdated");
@@ -49,18 +40,34 @@ const locationButtons = document.querySelectorAll(".location-choice button");
 const hoursInput = document.getElementById("hours");
 const minutesInput = document.getElementById("minutes");
 
+// FAQ modal
+const faqBtn = document.getElementById("faqBtn");
+const faqModal = document.getElementById("faqModal");
+const faqClose = document.getElementById("faqClose");
+
+// Positive message
+const msgBtn = document.getElementById("msgBtn");
+const msgModal = document.getElementById("msgModal");
+const msgClose = document.getElementById("msgClose");
+const msgInput = document.getElementById("msgInput");
+const msgSubmitBtn = document.getElementById("msgSubmitBtn");
+
 let selectedLocation = null;
 
-// =========================
-// UI handlers
-// =========================
+// -------------------------
+// Anonymous Auth
+// -------------------------
+auth.signInAnonymously().catch(err => {
+  console.error("Auth error:", err);
+});
+
+// -------------------------
+// UI Handlers
+// -------------------------
 openFormBtn.onclick = () => formSection.classList.remove("hidden");
+cancelBtn.onclick = () => { formSection.classList.add("hidden"); resetForm(); };
 
-cancelBtn.onclick = () => {
-  formSection.classList.add("hidden");
-  resetForm();
-};
-
+// Location selection
 locationButtons.forEach(btn => {
   btn.onclick = () => {
     locationButtons.forEach(b => b.classList.remove("selected"));
@@ -69,40 +76,63 @@ locationButtons.forEach(btn => {
   };
 });
 
-// =========================
-// Submit wait time
-// =========================
-submitBtn.onclick = async () => {
-  if (!auth.currentUser) {
-    alert("Please wait a moment and try again.");
-    return;
-  }
+// FAQ modal
+if(faqBtn && faqModal && faqClose) {
+  faqBtn.onclick = () => faqModal.classList.remove("hidden");
+  faqClose.onclick = () => faqModal.classList.add("hidden");
+}
 
-  if (!selectedLocation) {
-    alert("Select drive-thru or dine-in.");
-    return;
-  }
+// Positive message modal
+if(msgBtn && msgModal && msgClose && msgSubmitBtn && msgInput) {
+  msgBtn.onclick = () => msgModal.classList.remove("hidden");
+  msgClose.onclick = () => msgModal.classList.add("hidden");
+}
+
+// -------------------------
+// Reset form
+// -------------------------
+function resetForm() {
+  selectedLocation = null;
+  locationButtons.forEach(b => b.classList.remove("selected"));
+  hoursInput.value = 0;
+  minutesInput.value = 0;
+}
+
+// -------------------------
+// Submit Wait Time
+// -------------------------
+submitBtn.onclick = async () => {
+  if (!auth.currentUser) { alert("Please wait a moment and try again."); return; }
+  if (!selectedLocation) { alert("Select drive-thru or dine-in."); return; }
 
   const hours = Number(hoursInput.value) || 0;
   const mins = Number(minutesInput.value) || 0;
-  const totalMinutes = hours * 60 + mins;
 
-  if (totalMinutes <= 0 || totalMinutes > 240) {
-    alert("Wait time must be between 1 minute and 4 hours.");
+  if (hours < 0 || hours > 4 || mins < 0 || mins > 59) {
+    alert("Enter a valid time: 0–4 hours, 0–59 minutes.");
     return;
   }
 
-  const uid = auth.currentUser.uid;
-  const lockRef = db.collection("userLocks").doc(uid);
+  const totalMinutes = hours * 60 + mins;
+  if (totalMinutes <= 0) { alert("Wait time must be at least 1 minute."); return; }
+
+  if(!isBusinessHours()) { alert("Submissions are only allowed 10:30 AM – 1:15 AM NL time."); return; }
 
   try {
-    // 🔒 Update lock FIRST (enforced by rules)
-    await lockRef.set(
-      { lastSubmission: firebase.firestore.FieldValue.serverTimestamp() },
-      { merge: true }
-    );
+    const uid = auth.currentUser.uid;
+    const lockRef = db.collection("userLocks").doc(uid);
+    const lockSnap = await lockRef.get();
 
-    // 📝 Submit wait time
+    if(lockSnap.exists) {
+      const last = lockSnap.data().lastSubmission.toDate();
+      const diff = (Date.now() - last.getTime()) / (1000*60*60);
+      if(diff < 6) { alert("You can submit only once every 6 hours."); return; }
+    }
+
+    // Update lock
+    await lockRef.set({ lastSubmission: firebase.firestore.FieldValue.serverTimestamp() });
+
+    // Submit wait time
     await db.collection("waitTimes").add({
       uid,
       location: selectedLocation,
@@ -115,45 +145,28 @@ submitBtn.onclick = async () => {
     resetForm();
     fetchLatestWaitTimes();
 
-  } catch (err) {
-    if (err.code === "permission-denied") {
-      alert("You can only submit once every 45 minutes.");
-    } else {
-      console.error("Submission error:", err);
-      alert("Submission failed. Please try again.");
-    }
+  } catch(err) {
+    console.error("Submission error:", err);
+    alert("Submission failed. Please try again.");
   }
 };
 
-// =========================
-// Reset form
-// =========================
-function resetForm() {
-  selectedLocation = null;
-  locationButtons.forEach(b => b.classList.remove("selected"));
-  hoursInput.value = 0;
-  minutesInput.value = 0;
-}
-
-// =========================
-// Fetch & display wait times
-// =========================
+// -------------------------
+// Fetch & Display Wait Times
+// -------------------------
 async function fetchLatestWaitTimes() {
   const locations = ["drive", "dine"];
   let showWarning = false;
 
-  for (const loc of locations) {
+  for(const loc of locations){
     try {
       const snap = await db.collection("waitTimes")
-        .where("location", "==", loc)
-        .orderBy("timestamp", "desc")
+        .where("location","==",loc)
+        .orderBy("timestamp","desc")
         .limit(10)
         .get();
 
-      if (snap.empty) {
-        setDisplay(loc, "No data yet", "");
-        continue;
-      }
+      if(snap.empty) { setDisplay(loc,"No data yet",""); continue; }
 
       let total = 0;
       let latest = null;
@@ -161,9 +174,9 @@ async function fetchLatestWaitTimes() {
       snap.forEach(doc => {
         const d = doc.data();
         total += d.minutes;
-        if (d.timestamp) {
+        if(d.timestamp) {
           const t = d.timestamp.toDate();
-          if (!latest || t > latest) latest = t;
+          if(!latest || t > latest) latest = t;
         }
       });
 
@@ -172,17 +185,13 @@ async function fetchLatestWaitTimes() {
       const m = avg % 60;
       const label = h ? `${h}h ${m}m` : `${m}m`;
 
-      if (avg > 120) showWarning = true;
+      if(avg >= 120) showWarning = true;
 
-      setDisplay(
-        loc,
-        label,
-        latest
-          ? `Updated: ${latest.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-          : ""
+      setDisplay(loc,label,
+        latest ? `Updated: ${latest.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}` : ""
       );
 
-    } catch (err) {
+    } catch(err) {
       console.error("Fetch error:", err);
     }
   }
@@ -190,18 +199,55 @@ async function fetchLatestWaitTimes() {
   warningEl.classList.toggle("hidden", !showWarning);
 }
 
-function setDisplay(loc, time, updated) {
-  if (loc === "drive") {
-    driveTimeEl.textContent = time;
-    driveUpdatedEl.textContent = updated;
-  } else {
-    dineTimeEl.textContent = time;
-    dineUpdatedEl.textContent = updated;
-  }
+function setDisplay(loc,time,updated){
+  if(loc==="drive") { driveTimeEl.textContent = time; driveUpdatedEl.textContent = updated; }
+  else { dineTimeEl.textContent = time; dineUpdatedEl.textContent = updated; }
 }
 
-// =========================
-// Initial load + refresh
-// =========================
+// -------------------------
+// Submit Positive Message
+// -------------------------
+if(msgSubmitBtn && msgInput) {
+  msgSubmitBtn.onclick = async () => {
+    const text = msgInput.value.trim();
+    if(text.length === 0 || text.length > 200) { alert("Message must be 1–200 characters."); return; }
+    if(/https?:\/\//i.test(text) || /[<>$]/.test(text)) { alert("Message contains invalid characters."); return; }
+
+    try {
+      await db.collection("messages").add({
+        message: text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      alert("Thanks for your positive message!");
+      msgInput.value = "";
+      msgModal.classList.add("hidden");
+    } catch(err) {
+      console.error("Message error:", err);
+      alert("Submission failed. Try again.");
+    }
+  };
+}
+
+// -------------------------
+// Business Hours Check (NL time)
+// -------------------------
+function isBusinessHours(){
+  const now = new Date();
+  // Convert to NL time
+  const utc = now.getTime() + now.getTimezoneOffset()*60000;
+  const offset = -3.5*60*60000;
+  const nltime = new Date(utc + offset);
+
+  const hours = nltime.getHours();
+  const minutes = nltime.getMinutes();
+  const totalMinutes = hours*60 + minutes;
+
+  // 10:30 AM -> 1:15 AM
+  return (totalMinutes >= 10*60+30) || (totalMinutes <= 75);
+}
+
+// -------------------------
+// Initial Load + Refresh
+// -------------------------
 fetchLatestWaitTimes();
-setInterval(fetchLatestWaitTimes, 60000);
+setInterval(fetchLatestWaitTimes,60000);
