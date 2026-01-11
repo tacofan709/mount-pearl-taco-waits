@@ -1,125 +1,148 @@
-// Firebase config (replace with your own)
+// ---------- Firebase Setup ----------
 const firebaseConfig = {
-  apiKey: "AIzaSyD1WpNflBgPf-ExN1gCo1y4m7TDjkBoci4",
-  authDomain: "mount-pearl-taco-waits-7767e.firebaseapp.com",
-  projectId: "mount-pearl-taco-waits-7767e",
-  storageBucket: "mount-pearl-taco-waits-7767e.firebasestorage.app",
-  messagingSenderId: "146084542686",
-  appId: "1:146084542686:web:fd766ca0a465539d152a4f"
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 
-// DOM elements
-const waitTimesContainer = document.getElementById('waitTimes');
-const submitBtn = document.getElementById('submitBtn');
-const locationButtons = document.querySelectorAll('.location-choice button');
-const hoursInput = document.getElementById('hours');
-const minutesInput = document.getElementById('minutes');
+// ---------- Elements ----------
+const driveTimeEl = document.getElementById("driveTime");
+const dineTimeEl = document.getElementById("dineTime");
+const driveUpdatedEl = document.getElementById("driveUpdated");
+const dineUpdatedEl = document.getElementById("dineUpdated");
 
+const openFormBtn = document.getElementById("openFormBtn");
+const formSection = document.getElementById("formSection");
+const cancelBtn = document.getElementById("cancelBtn");
+const submitBtn = document.getElementById("submitBtn");
+
+const locationButtons = document.querySelectorAll(".location-choice button");
 let selectedLocation = null;
 
-// Handle location selection
-locationButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    selectedLocation = btn.dataset.location;
-    locationButtons.forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
+const hoursInput = document.getElementById("hours");
+const minutesInput = document.getElementById("minutes");
+
+const warningEl = document.getElementById("warning");
+
+// ---------- Auth (Anonymous) ----------
+auth.signInAnonymously().catch((err) => {
+  console.error("Auth error:", err);
+});
+
+// ---------- Fetch Wait Times ----------
+async function fetchWaitTimes() {
+  try {
+    const snapshot = await db.collection("waitTimes").get();
+    let drive = null;
+    let dine = null;
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.type === "drive") drive = data;
+      if (data.type === "dine") dine = data;
+    });
+
+    if (drive) {
+      driveTimeEl.textContent = `${drive.hours}h ${drive.minutes}m`;
+      driveUpdatedEl.textContent = `Updated: ${new Date(drive.timestamp?.seconds * 1000).toLocaleTimeString()}`;
+      if (drive.hours >= 2) warningEl.classList.remove("hidden");
+    }
+
+    if (dine) {
+      dineTimeEl.textContent = `${dine.hours}h ${dine.minutes}m`;
+      dineUpdatedEl.textContent = `Updated: ${new Date(dine.timestamp?.seconds * 1000).toLocaleTimeString()}`;
+      if (dine.hours >= 2) warningEl.classList.remove("hidden");
+    }
+  } catch (err) {
+    console.error("Fetch error:", err);
+  }
+}
+
+// Initial fetch
+fetchWaitTimes();
+// Refresh every 60 seconds
+setInterval(fetchWaitTimes, 60000);
+
+// ---------- Form Handling ----------
+openFormBtn.addEventListener("click", () => {
+  formSection.classList.remove("hidden");
+});
+
+cancelBtn.addEventListener("click", () => {
+  formSection.classList.add("hidden");
+  resetForm();
+});
+
+// Location buttons
+locationButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    locationButtons.forEach((b) => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    selectedLocation = btn.dataset.type;
   });
 });
 
-// Device ID for 6-hour lock (anonymous)
-let deviceId = localStorage.getItem('deviceId');
-if (!deviceId) {
-  deviceId = 'device-' + Math.random().toString(36).substr(2, 9);
-  localStorage.setItem('deviceId', deviceId);
+function resetForm() {
+  locationButtons.forEach((b) => b.classList.remove("selected"));
+  selectedLocation = null;
+  hoursInput.value = 0;
+  minutesInput.value = 0;
 }
 
-// Submit wait time
-submitBtn.addEventListener('click', async () => {
+// ---------- Submission Lock ----------
+const LOCK_HOURS = 6;
+
+function canSubmit(lastTimestamp) {
+  if (!lastTimestamp) return true;
+  const now = Date.now();
+  return now - lastTimestamp >= LOCK_HOURS * 60 * 60 * 1000;
+}
+
+// ---------- Submit Data ----------
+submitBtn.addEventListener("click", async () => {
   if (!selectedLocation) {
-    alert('Select a location first!');
+    alert("Please select a location!");
     return;
   }
 
-  const hours = parseInt(hoursInput.value, 10);
-  const minutes = parseInt(minutesInput.value, 10);
+  const hours = parseInt(hoursInput.value);
+  const minutes = parseInt(minutesInput.value);
 
-  // Validation
-  if (isNaN(hours) || hours < 0 || hours > 4) {
-    alert('Hours must be 0-4');
-    return;
-  }
-  if (isNaN(minutes) || minutes < 0 || minutes > 59) {
-    alert('Minutes must be 0-59');
-    return;
-  }
-
-  // Business hours: 10:30am - 1:00am
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun, 6=Sat
-  const hour = now.getHours();
-  const minute = now.getMinutes();
-  const nowMinutes = hour * 60 + minute;
-  const startMinutes = 10 * 60 + 30;
-  const endMinutes = 25 * 60; // 1:00am next day = 25*60
-
-  if (nowMinutes < startMinutes || nowMinutes > endMinutes) {
-    alert('Wait times can only be submitted between 10:30am - 1:00am');
-    return;
-  }
-
-  // 6-hour lock
-  const lastSubmit = localStorage.getItem('lastSubmit');
-  if (lastSubmit && now.getTime() - parseInt(lastSubmit) < 6 * 60 * 60 * 1000) {
-    alert('You can only submit once every 6 hours');
+  if (isNaN(hours) || isNaN(minutes)) {
+    alert("Please enter a valid time!");
     return;
   }
 
   try {
-    await db.collection('waitTimes').add({
-      location: selectedLocation,
+    const uid = auth.currentUser.uid;
+    const lastSubmission = localStorage.getItem(`lastSubmission_${selectedLocation}`);
+    if (!canSubmit(lastSubmission)) {
+      alert(`You must wait ${LOCK_HOURS} hours between submissions for this location.`);
+      return;
+    }
+
+    const docRef = db.collection("waitTimes").doc(selectedLocation);
+    await docRef.set({
+      type: selectedLocation,
       hours,
       minutes,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      deviceId
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
-    localStorage.setItem('lastSubmit', now.getTime());
-    alert('Wait time submitted!');
+
+    localStorage.setItem(`lastSubmission_${selectedLocation}`, Date.now());
+    formSection.classList.add("hidden");
+    resetForm();
     fetchWaitTimes();
   } catch (err) {
-    console.error(err);
-    alert('Submission failed. Try again.');
+    console.error("Submission error:", err);
+    alert("Submission failed. Please try again.");
   }
 });
-
-// Fetch and display wait times
-async function fetchWaitTimes() {
-  waitTimesContainer.innerHTML = '';
-  try {
-    const snapshot = await db.collection('waitTimes')
-      .orderBy('timestamp', 'desc')
-      .get();
-
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const card = document.createElement('div');
-      card.classList.add('wait-card');
-      card.innerHTML = `
-        <h2>${data.location}</h2>
-        <div class="time">${data.hours}h ${data.minutes}m</div>
-        <div class="updated">${data.timestamp?.toDate().toLocaleTimeString() || 'Just now'}</div>
-      `;
-      waitTimesContainer.appendChild(card);
-    });
-  } catch (err) {
-    console.error(err);
-    waitTimesContainer.innerHTML = 'Error loading wait times.';
-  }
-}
-
-// Initial load + refresh every 2 mins
-fetchWaitTimes();
-setInterval(fetchWaitTimes, 120000);
