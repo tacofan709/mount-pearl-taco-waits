@@ -1,11 +1,11 @@
 // ---------- Firebase Setup ----------
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyD1WpNflBgPf-ExN1gCo1y4m7TDjkBoci4",
+  authDomain: "mount-pearl-taco-waits-7767e.firebaseapp.com",
+  projectId: "mount-pearl-taco-waits-7767e",
+  storageBucket: "mount-pearl-taco-waits-7767e.firebasestorage.app",
+  messagingSenderId: "146084542686",
+  appId: "1:146084542686:web:fd766ca0a465539d152a4f"
 };
 
 // Initialize Firebase
