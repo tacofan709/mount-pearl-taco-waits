@@ -64,7 +64,7 @@ locationButtons.forEach(btn => {
   });
 });
 
-// ------------------ Submission with 6-Hour Cooldown ------------------
+// ------------------ Submission with Global 6-Hour Cooldown ------------------
 submitBtn.addEventListener('click', async () => {
   if (!selectedLocation) {
     alert("Please select Drive-thru or Dine-in.");
@@ -75,8 +75,8 @@ submitBtn.addEventListener('click', async () => {
   const minutes = parseInt(minutesInput.value, 10);
   const totalMinutes = hours * 60 + minutes;
 
-  // Unique doc per user + location
-  const docId = `${auth.currentUser.uid}_${selectedLocation}`;
+  // ONE doc per user for all submissions
+  const docId = auth.currentUser.uid;
   const docRef = db.collection('waitTimes').doc(docId);
 
   try {
@@ -89,7 +89,8 @@ submitBtn.addEventListener('click', async () => {
       const hoursSinceLast = diffMs / (1000 * 60 * 60);
 
       if (hoursSinceLast < 6) {
-        alert(`You can only submit a ${selectedLocation} entry once every 6 hours. Please try again later.`);
+        const remaining = Math.ceil(6 - hoursSinceLast);
+        alert(`You can only submit once every 6 hours. Please try again in ~${remaining} hour(s).`);
         return;
       }
     }
