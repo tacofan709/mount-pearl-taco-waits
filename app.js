@@ -248,7 +248,7 @@ async function fetchLatestWaitTimes() {
       const proportion = maxCount / allTimes.length;
 
       if (proportion >= juiceThreshold) {
-        juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} submissions are at the maximum wait — take these numbers with a grain of salt 🌮`;
+        juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} recent submissions are at the maximum wait — take these numbers with a grain of salt 🌮`;
         juiceWarningEl.classList.remove('hidden');
       } else {
         juiceWarningEl.classList.add('hidden');
