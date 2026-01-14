@@ -257,13 +257,20 @@ if (allTimes.length) {
   console.log('DEBUG: maxCount=', maxCount, 'proportion=', proportion);
 
   if (proportion >= juiceThreshold) {
-    juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} submissions are at the maximum wait — take these numbers with a grain of salt`;
+    juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} submissions are at the maximum wait — take these numbers with a grain of salt 🌮`;
     juiceWarningEl.classList.remove('hidden');
   } else {
     juiceWarningEl.classList.add('hidden');
   }
 } else {
   juiceWarningEl.classList.add('hidden');
+}
+
+// <-- THIS CLOSES THE TRY BLOCK
+} catch (err) {
+  console.error("❌ Fetch failed:", err);
+  driveTimeEl.textContent = 'Error';
+  dineTimeEl.textContent = 'Error';
 }
 
 // ------------------ Initial Fetch & Auto-Refresh ------------------
