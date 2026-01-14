@@ -100,26 +100,37 @@ submitBtn.addEventListener('click', async () => {
     return;
   }
 
-  // --- Validate Inputs ---
-  const hours = parseInt(hoursInput.value, 10);
-  const minutes = parseInt(minutesInput.value, 10);
+ // --- Validate Inputs ---
+const hours = parseInt(hoursInput.value, 10);
+const minutes = parseInt(minutesInput.value, 10);
 
-  if (isNaN(hours) || isNaN(minutes)) {
-    alert("Please enter valid numbers for hours and minutes.");
-    return;
-  }
+if (isNaN(hours) || isNaN(minutes)) {
+  alert("Please enter valid numbers for hours and minutes.");
+  return;
+}
 
-  const totalMinutes = hours * 60 + minutes;
+// Validate individual ranges
+if (hours < 0 || hours > 4) {
+  alert("Hours must be between 0 and 4.");
+  return;
+}
 
-  if (totalMinutes <= 0) {
-    alert("Please enter a wait time greater than 0 minutes.");
-    return;
-  }
+if (minutes < 0 || minutes > 59) {
+  alert("Minutes must be between 0 and 59.");
+  return;
+}
 
-  if (totalMinutes > 299) {
-    alert("Please enter a wait time under 5 hours.");
-    return;
-  }
+const totalMinutes = hours * 60 + minutes;
+
+if (totalMinutes <= 0) {
+  alert("Please enter a wait time greater than 0 minutes.");
+  return;
+}
+
+if (totalMinutes > 299) {
+  alert("Please enter a wait time under 5 hours.");
+  return;
+}
 
   // --- One doc per user ---
   const docId = auth.currentUser.uid;
