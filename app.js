@@ -38,7 +38,7 @@ const warningEl = document.getElementById('warning');
 
 // ------------------ Helper Functions ------------------
 function formatMinutesToHours(minutes) {
-  if (!minutes || minutes === 0) return 'No recent reports'; // ✅ updated text
+  if (!minutes || minutes === 0) return 'No recent reports';
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
@@ -78,7 +78,7 @@ locationButtons.forEach(btn => {
   });
 });
 
-// ------------------ Submission with Global 6-Hour Cooldown ------------------
+// ------------------ Submission with 6-Hour Cooldown ------------------
 submitBtn.addEventListener('click', async () => {
   if (!selectedLocation) {
     alert("Please select Drive-thru or Dine-in.");
@@ -99,23 +99,29 @@ submitBtn.addEventListener('click', async () => {
     alert("Submissions are only accepted between 10:30 AM and 1:15 AM Newfoundland Time.");
     return;
   }
-  // --- End off-hour restriction ---
 
+  // --- Validate Inputs ---
   const hours = parseInt(hoursInput.value, 10);
   const minutes = parseInt(minutesInput.value, 10);
-  const totalMinutes = hours * 60 + minutes;
 
-  // Optional: prevent extreme entries
-  if (totalMinutes <= 0) {
-    alert("Please enter a valid wait time greater than 0 minutes.");
+  if (isNaN(hours) || isNaN(minutes)) {
+    alert("Please enter valid numbers for hours and minutes.");
     return;
   }
+
+  const totalMinutes = hours * 60 + minutes;
+
+  if (totalMinutes <= 0) {
+    alert("Please enter a wait time greater than 0 minutes.");
+    return;
+  }
+
   if (totalMinutes > 299) {
     alert("Please enter a wait time under 5 hours.");
     return;
   }
 
-  // ONE doc per user for all submissions
+  // --- One doc per user ---
   const docId = auth.currentUser.uid;
   const docRef = db.collection('waitTimes').doc(docId);
 
@@ -135,7 +141,6 @@ submitBtn.addEventListener('click', async () => {
       }
     }
 
-    // Save new entry
     await docRef.set({
       location: selectedLocation,
       minutes: totalMinutes,
@@ -160,11 +165,13 @@ function calcWeightedMedian(times, timestamps) {
   const now = new Date();
   const weights = timestamps.map(ts => {
     const ageMin = (now - ts.toDate()) / 60000;
-    // New = weight 1.0; 90 min old = weight 0.2 minimum
+    // Recent data = more weight; older = less weight
     return Math.max(0.2, 1 - ageMin / 90);
   });
 
-  const combined = times.map((t, i) => ({ t, w: weights[i] }))
+  const combined = times
+    .map((t, i) => ({ t, w: weights[i] }))
+    .filter(x => typeof x.t === "number" && !isNaN(x.t))
     .sort((a, b) => a.t - b.t);
 
   const totalWeight = combined.reduce((sum, x) => sum + x.w, 0);
@@ -192,7 +199,7 @@ async function fetchLatestWaitTimes() {
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      if (!data.timestamp) return;
+      if (!data.timestamp || typeof data.minutes !== "number" || isNaN(data.minutes)) return;
 
       if (data.location === 'drive' && driveTimes.length < 10) {
         driveTimes.push(data.minutes);
@@ -203,7 +210,6 @@ async function fetchLatestWaitTimes() {
       }
     });
 
-    // ✅ Weighted medians
     const medianDrive = calcWeightedMedian(driveTimes, driveTimestamps);
     const medianDine = calcWeightedMedian(dineTimes, dineTimestamps);
 
@@ -219,7 +225,7 @@ async function fetchLatestWaitTimes() {
     driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
     dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
 
-    // Show warning if any times > 120 min
+    // Show warning if any wait time > 120 minutes
     const allTimes = [...driveTimes, ...dineTimes];
     if (allTimes.length && Math.max(...allTimes) > 120) {
       warningEl.classList.remove('hidden');
