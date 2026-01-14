@@ -242,8 +242,8 @@ async function fetchLatestWaitTimes() {
     }
 
     // --- Juice Arse Warning ---
-    const juiceThreshold = 0.3; // 30% of submissions maxed
-    if (allTimes.length >= 5) { // only show warning if at least 5 submissions
+    const juiceThreshold = 0.3; // 30% max submissions
+    if (allTimes.length >= 5) {
       const maxCount = allTimes.filter(t => t >= 299).length;
       const proportion = maxCount / allTimes.length;
 
@@ -263,8 +263,8 @@ async function fetchLatestWaitTimes() {
     dineTimeEl.textContent = 'Error';
     warningEl.classList.add('hidden');
     juiceWarningEl.classList.add('hidden');
-  }
-}
+  } // <-- end of catch
+} // <-- end of fetchLatestWaitTimes()
 
 // ------------------ Initial Fetch & Auto-Refresh ------------------
 fetchLatestWaitTimes();
