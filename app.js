@@ -248,23 +248,22 @@ if (allTimes.length && Math.max(...allTimes) > 120) {
 // --- Juice Arse Warning (maxed submissions) ---
 const juiceWarningEl = document.getElementById('juiceWarning');
 const juiceThreshold = 0.3; // 30% of submissions maxed triggers warning
+
 if (allTimes.length) {
   const maxCount = allTimes.filter(t => t >= 299).length; // 299 = 4h 59m
-  if (maxCount / allTimes.length >= juiceThreshold) {
+  const proportion = maxCount / allTimes.length;
+
+  console.log('DEBUG: allTimes=', allTimes);
+  console.log('DEBUG: maxCount=', maxCount, 'proportion=', proportion);
+
+  if (proportion >= juiceThreshold) {
+    juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} submissions are at the maximum wait — take these numbers with a grain of salt`;
     juiceWarningEl.classList.remove('hidden');
   } else {
     juiceWarningEl.classList.add('hidden');
   }
 } else {
   juiceWarningEl.classList.add('hidden');
-}
-
-
-  } catch (err) {
-    console.error("❌ Fetch failed:", err);
-    driveTimeEl.textContent = 'Error';
-    dineTimeEl.textContent = 'Error';
-  }
 }
 
 // ------------------ Initial Fetch & Auto-Refresh ------------------
