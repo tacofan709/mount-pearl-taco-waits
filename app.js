@@ -236,13 +236,29 @@ async function fetchLatestWaitTimes() {
     driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
     dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
 
-    // Show warning if any wait time > 120 minutes
-    const allTimes = [...driveTimes, ...dineTimes];
-    if (allTimes.length && Math.max(...allTimes) > 120) {
-      warningEl.classList.remove('hidden');
-    } else {
-      warningEl.classList.add('hidden');
-    }
+ const allTimes = [...driveTimes, ...dineTimes];
+
+// --- 2-hour warning ---
+if (allTimes.length && Math.max(...allTimes) > 120) {
+  warningEl.classList.remove('hidden');
+} else {
+  warningEl.classList.add('hidden');
+}
+
+// --- Juice Arse Warning (maxed submissions) ---
+const juiceWarningEl = document.getElementById('juiceWarning');
+const juiceThreshold = 0.3; // 30% of submissions maxed triggers warning
+if (allTimes.length) {
+  const maxCount = allTimes.filter(t => t >= 299).length; // 299 = 4h 59m
+  if (maxCount / allTimes.length >= juiceThreshold) {
+    juiceWarningEl.classList.remove('hidden');
+  } else {
+    juiceWarningEl.classList.add('hidden');
+  }
+} else {
+  juiceWarningEl.classList.add('hidden');
+}
+
 
   } catch (err) {
     console.error("❌ Fetch failed:", err);
