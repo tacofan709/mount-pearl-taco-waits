@@ -35,6 +35,7 @@ let selectedLocation = null;
 const hoursInput = document.getElementById('hours');
 const minutesInput = document.getElementById('minutes');
 const warningEl = document.getElementById('warning');
+const juiceWarningEl = document.getElementById('juiceWarning');
 
 // ------------------ Helper Functions ------------------
 function formatMinutesToHours(minutes) {
@@ -100,37 +101,36 @@ submitBtn.addEventListener('click', async () => {
     return;
   }
 
- // --- Validate Inputs ---
-const hours = parseInt(hoursInput.value, 10);
-const minutes = parseInt(minutesInput.value, 10);
+  // --- Validate Inputs ---
+  const hours = parseInt(hoursInput.value, 10);
+  const minutes = parseInt(minutesInput.value, 10);
 
-if (isNaN(hours) || isNaN(minutes)) {
-  alert("Please enter valid numbers for hours and minutes.");
-  return;
-}
+  if (isNaN(hours) || isNaN(minutes)) {
+    alert("Please enter valid numbers for hours and minutes.");
+    return;
+  }
 
-// Validate individual ranges
-if (hours < 0 || hours > 4) {
-  alert("Hours must be between 0 and 4.");
-  return;
-}
+  if (hours < 0 || hours > 4) {
+    alert("Hours must be between 0 and 4.");
+    return;
+  }
 
-if (minutes < 0 || minutes > 59) {
-  alert("Minutes must be between 0 and 59.");
-  return;
-}
+  if (minutes < 0 || minutes > 59) {
+    alert("Minutes must be between 0 and 59.");
+    return;
+  }
 
-const totalMinutes = hours * 60 + minutes;
+  const totalMinutes = hours * 60 + minutes;
 
-if (totalMinutes <= 0) {
-  alert("Please enter a wait time greater than 0 minutes.");
-  return;
-}
+  if (totalMinutes <= 0) {
+    alert("Please enter a wait time greater than 0 minutes.");
+    return;
+  }
 
-if (totalMinutes > 299) {
-  alert("Please enter a wait time under 5 hours.");
-  return;
-}
+  if (totalMinutes > 299) {
+    alert("Please enter a wait time under 5 hours.");
+    return;
+  }
 
   // --- One doc per user ---
   const docId = auth.currentUser.uid;
@@ -176,8 +176,7 @@ function calcWeightedMedian(times, timestamps) {
   const now = new Date();
   const weights = timestamps.map(ts => {
     const ageMin = (now - ts.toDate()) / 60000;
-    // Recent data = more weight; older = less weight
-    return Math.max(0.2, 1 - ageMin / 90);
+    return Math.max(0.2, 1 - ageMin / 90); // older = less weight
   });
 
   const combined = times
@@ -194,7 +193,7 @@ function calcWeightedMedian(times, timestamps) {
   return Math.round(combined[combined.length - 1].t);
 }
 
-// ------------------ Fetch Latest Wait Times (Weighted Median of Last 10, 90 min) ------------------
+// ------------------ Fetch Latest Wait Times ------------------
 async function fetchLatestWaitTimes() {
   try {
     const now = new Date();
@@ -230,47 +229,41 @@ async function fetchLatestWaitTimes() {
     const formatDate = ts =>
       ts ? new Date(ts.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-    const latestDrive = driveTimestamps[0];
-    const latestDine = dineTimestamps[0];
+    driveUpdatedEl.textContent = driveTimestamps[0] ? `Updated: ${formatDate(driveTimestamps[0])}` : '';
+    dineUpdatedEl.textContent = dineTimestamps[0] ? `Updated: ${formatDate(dineTimestamps[0])}` : '';
 
-    driveUpdatedEl.textContent = latestDrive ? `Updated: ${formatDate(latestDrive)}` : '';
-    dineUpdatedEl.textContent = latestDine ? `Updated: ${formatDate(latestDine)}` : '';
+    const allTimes = [...driveTimes, ...dineTimes];
 
- const allTimes = [...driveTimes, ...dineTimes];
+    // --- 2-hour warning ---
+    if (allTimes.length && Math.max(...allTimes) > 120) {
+      warningEl.classList.remove('hidden');
+    } else {
+      warningEl.classList.add('hidden');
+    }
 
-// --- 2-hour warning ---
-if (allTimes.length && Math.max(...allTimes) > 120) {
-  warningEl.classList.remove('hidden');
-} else {
-  warningEl.classList.add('hidden');
-}
+    // --- Juice Arse Warning ---
+    const juiceThreshold = 0.3; // 30% of submissions maxed
+    if (allTimes.length >= 5) { // only show warning if at least 5 submissions
+      const maxCount = allTimes.filter(t => t >= 299).length;
+      const proportion = maxCount / allTimes.length;
 
-// --- Juice Arse Warning (maxed submissions) ---
-const juiceWarningEl = document.getElementById('juiceWarning');
-const juiceThreshold = 0.3; // 30% of submissions maxed triggers warning
+      if (proportion >= juiceThreshold) {
+        juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} submissions are at the maximum wait — take these numbers with a grain of salt 🌮`;
+        juiceWarningEl.classList.remove('hidden');
+      } else {
+        juiceWarningEl.classList.add('hidden');
+      }
+    } else {
+      juiceWarningEl.classList.add('hidden');
+    }
 
-if (allTimes.length) {
-  const maxCount = allTimes.filter(t => t >= 299).length; // 299 = 4h 59m
-  const proportion = maxCount / allTimes.length;
-
-  console.log('DEBUG: allTimes=', allTimes);
-  console.log('DEBUG: maxCount=', maxCount, 'proportion=', proportion);
-
-  if (proportion >= juiceThreshold) {
-    juiceWarningEl.textContent = `⚠️ Juice Arse Alert! ${maxCount} of ${allTimes.length} submissions are at the maximum wait — take these numbers with a grain of salt 🌮`;
-    juiceWarningEl.classList.remove('hidden');
-  } else {
+  } catch (err) {
+    console.error("❌ Fetch failed:", err);
+    driveTimeEl.textContent = 'Error';
+    dineTimeEl.textContent = 'Error';
+    warningEl.classList.add('hidden');
     juiceWarningEl.classList.add('hidden');
   }
-} else {
-  juiceWarningEl.classList.add('hidden');
-}
-
-// <-- THIS CLOSES THE TRY BLOCK
-} catch (err) {
-  console.error("❌ Fetch failed:", err);
-  driveTimeEl.textContent = 'Error';
-  dineTimeEl.textContent = 'Error';
 }
 
 // ------------------ Initial Fetch & Auto-Refresh ------------------
